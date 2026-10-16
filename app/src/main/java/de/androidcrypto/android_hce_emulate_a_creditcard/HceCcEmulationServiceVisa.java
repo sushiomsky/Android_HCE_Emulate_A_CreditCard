@@ -78,11 +78,13 @@ public class HceCcEmulationServiceVisa extends HostApduService {
 
         // step 03
         // dynamic - just compare the beginning of the commandApdu with the sample
-        byte[] shortedCommandApdu = Arrays.copyOf(commandApdu, 2);
-        if (Arrays.equals(shortedCommandApdu, GET_PROCESSING_OPTONS_COMMAND_SHORTED)) {
-            sendMessageToActivity("step 03 Get Processing Options (GPO) Command", bytesToHexNpe(commandApdu));
-            sendMessageToActivity("step 03 Get Processing Options (GPO) Response", bytesToHexNpe(GET_PROCESSING_OPTONS_RESPONSE));
-            return concatenateByteArrays(GET_PROCESSING_OPTONS_RESPONSE, RESPONSE_OK_SW);
+        if (commandApdu != null && commandApdu.length >= 2) {
+            byte[] shortedCommandApdu = Arrays.copyOf(commandApdu, 2);
+            if (Arrays.equals(shortedCommandApdu, GET_PROCESSING_OPTONS_COMMAND_SHORTED)) {
+                sendMessageToActivity("step 03 Get Processing Options (GPO) Command", bytesToHexNpe(commandApdu));
+                sendMessageToActivity("step 03 Get Processing Options (GPO) Response", bytesToHexNpe(GET_PROCESSING_OPTONS_RESPONSE));
+                return concatenateByteArrays(GET_PROCESSING_OPTONS_RESPONSE, RESPONSE_OK_SW);
+            }
         }
 
         // step 04
