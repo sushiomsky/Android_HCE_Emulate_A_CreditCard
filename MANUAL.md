@@ -181,10 +181,12 @@ under Settings → NFC → Tap and Pay** (Android caches the default).
 
 - **Visa** (`A0000000031010`, test PAN `4111111111111111`): the richest trace —
   full GPO template with AIP/AFL/track-2, PDOL-driven UN echo (real 9F38 from
-  the SELECT FCI), AFL-validated READ records (SFI 10, rec 3–6), first + second
+  the SELECT FCI), AFL-validated READ records (SFI 2, rec 3–6 — AFL byte `0x10`;
+  the sample log labels this SFI 10, the pre-shift P1/P2 byte), first + second
   GENERATE AC templates (CDOL1/CDOL2), dynamic ATC from `0x03AA`.
 - **Mastercard** (`A0000000041010`, test PAN `5555555555554444`): records on
-  SFI 8/10/20, null-PDOL GPO path (short `7712…` template), ATC from `0x0001`.
+  wire SFI 1/2/4 (sample log labels SFI 8/10/20, the pre-shift P2 bytes),
+  null-PDOL GPO path (short `7722…` template with dynamic ATC), ATC from `0x0001`.
 - **Amex** (`A000000025`, test PAN `378282246310005`): minimal 15-digit-PAN
   profile (tag 5A BCD with `F` pad nibble), records SFI 1 rec 1–2.
 - **Discover** (`A000000152`, test PAN `6011111111111117`): tag 5A + track-2
@@ -333,15 +335,19 @@ Done since the last roadmap review: PDOL-driven GPO (real 9F38 captured from
 the SELECT FCI, UN located field-by-field), CDOL1/CDOL2 collection from record
 data with 1st/2nd GENERATE AC routing, AFL-driven READ validation (from tag
 94), explicit MagStripe `80 2A 8E 80` decline (`6985`), per-APDU length-contract
-logging (PDOL/AFL/CDOL match vs `MISMATCH`).
+logging (PDOL/AFL/CDOL match vs `MISMATCH`), strict AFL mode (`strictAfl`
+flag → out-of-AFL reads declined `6A83`), PDOL/CDOL length policy (`LENIENT`
+default vs `STRICT` → `6700`), cryptogram-type logging (ARQC/TC/AAC from P1),
+per-scheme golden-trace tests (`EmvGoldenTraceTest`: full tap per profile).
+Fixed along the way: Mastercard record keys now use wire SFI numbering
+(P2≫3) matching the GPO AFL; the Mastercard GPO template advertises the real
+3-entry AFL from the sample reader log.
 
-Near term: strict AFL enforcement mode (flag, don't serve, out-of-AFL reads —
-currently logged only), PDOL-length mismatch handling (decline vs. best-effort
-echo policy), second-AC cryptogram-type branching (ARQC/TC/AAC via P1 bits).
-Medium term: per-scheme golden-trace tests, profile editor UI, pcap-style tap
-export, parser fuzzing with the LabProbe corpus both directions. Non-goals,
-permanently: real cryptogram computation, real PAN support, anything
-authorizable.
+Near term: PDOL-length mismatch handling (decline vs. best-effort echo policy —
+`STRICT` policy exists at the service layer, needs an on-device policy toggle),
+Medium term: profile editor UI, pcap-style tap export, parser fuzzing with the
+LabProbe corpus both directions. Non-goals, permanently: real cryptogram
+computation, real PAN support, anything authorizable.
 
 ## 9. License & sources
 

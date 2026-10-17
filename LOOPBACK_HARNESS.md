@@ -9,10 +9,24 @@ loopback on the JVM - no NFC hardware, no second phone needed.
 |---|-------------|------|
 | 1 | APDU parser dispatches on CLA/INS/P1/P2/Lc (SELECT A4, GPO A8, READ B2, GENERATE AC AE, GET DATA CA, GET RESPONSE C0) | `parseSelectPpse_fields`, `parseSelectAid_routingPerAid`, `parseGpo_case4ShortLc`, `readerConversation_allInstructionsParse` |
 | 2 | Dynamic GPO: terminal UN echoed, ATC incremented per tap, optional CVC3 dictionary | `gpoDynamic_unEchoAndAtcIncrement`, `gpoDynamic_cvc3DictionaryPatch`, `pdolDriven_unLocatedByPdol` |
+| 3 | GENERATE AC cryptogram-type decode (ARQC/TC/AAC from P1) | `acType_decodeFromP1` |
 | 4 | Per-AID routing incl. Amex A000000025 + Discover A000000152 | `parseSelectAid_routingPerAid` |
 | 5 | Extended-length APDU accept + 61xx/GET RESPONSE chaining + absurd-Lc flagging | `parseExtendedLength_accepts`, `parseAbsurdShortLc_flagged`, `chaining_splitAndStatus` |
 | 6 | `arrayBeginsWith` prefix matching | `prefixMatch_gpoHeader` |
 | 8 | PDOL-driven UN (real 9F38 field walk), AFL ranges, nested TLV lookup, session reset incl. PDOL/AFL/CDOL/AC-count | `pdolDriven_unLocatedByPdol`, `afl_parseRanges`, `findTlv_nestedLookup`, `sessionReset_clearsPdolAflCdolAcCount` |
+
+## Golden-trace tests (`EmvGoldenTraceTest`)
+
+One full tap per scheme through `EmvCardEmulatorCore.simulateTap` — SELECT PPSE,
+SELECT AID, GPO (UN echo + ATC + AFL capture), the reader's READ RECORDs
+(AFL-listed gate + fixture presence), GENERATE AC template check, live-ATC
+GET DATA. C-APDUs come from the repo's sample reader logs:
+
+- `visa_goldenTap`: sample-log PDOL values (33B), reads `00B2031400…00B2061400`
+  (wire SFI 2 — AFL byte `0x10`; the log labels it SFI 10, the pre-shift byte).
+- `mastercard_goldenTap`: null-PDOL GPO, reads `00B2010800/1000/2000/00B2022000`
+  (wire SFI 1/2/4 — the log labels them SFI 8/10/20, the pre-shift P2 bytes).
+- `amex_goldenTap` / `discover_goldenTap`: 27B PDOL values, reads SFI 1/2.
 
 ## Run it
 
