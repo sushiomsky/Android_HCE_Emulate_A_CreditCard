@@ -9,6 +9,7 @@ import static de.androidcrypto.android_hce_emulate_a_creditcard.EmvCardEmulatorC
 import static de.androidcrypto.android_hce_emulate_a_creditcard.EmvCardEmulatorCore.INS_SELECT;
 import static de.androidcrypto.android_hce_emulate_a_creditcard.EmvCardEmulatorCore.SW_CONDITIONS_NOT_SATISFIED;
 import static de.androidcrypto.android_hce_emulate_a_creditcard.EmvCardEmulatorCore.SW_FILE_NOT_FOUND;
+import static de.androidcrypto.android_hce_emulate_a_creditcard.EmvCardEmulatorCore.SW_RECORD_NOT_FOUND;
 import static de.androidcrypto.android_hce_emulate_a_creditcard.EmvCardEmulatorCore.SW_INS_NOT_SUPPORTED;
 import static de.androidcrypto.android_hce_emulate_a_creditcard.EmvCardEmulatorCore.SW_OK;
 import static de.androidcrypto.android_hce_emulate_a_creditcard.EmvCardEmulatorCore.SW_WRONG_LENGTH;
@@ -42,8 +43,16 @@ import java.util.Map;
  */
 public abstract class BaseHceEmulationService extends HostApduService {
 
-    /** Optional ATC -&gt; CVC3 dictionary patch applied to tag 9F62 on GPO. Null = disabled. */
+    /** Optional ATC -> CVC3 dictionary patch applied to tag 9F62 on GPO. Null = disabled. */
     protected Map<Integer, byte[]> cvc3ByAtc;
+
+    /**
+     * Strict AFL mode: when true, READ RECORD targets outside the GPO-advertised
+     * AFL ranges are declined with 6A83 (real-card behavior). When false (default),
+     * they are served from the fixture and flagged in the log — friendlier for
+     * lab readers that probe extra records. Subclasses may flip this.
+     */
+    protected boolean strictAflEnforcement = false;
 
     /** Upper bound for the first chunk before 61xx chaining kicks in. */
     protected int maxFirstChunk = 255;
@@ -213,12 +222,22 @@ public abstract class BaseHceEmulationService extends HostApduService {
     /**
      * Validate the READ RECORD target against the AFL advertised in GPO, collect
      * CDOL1/CDOL2 from record data, then serve the static record fixture.
+     *
+     * <p>Strict mode (see {@link #strictAflEnforcement}) declines out-of-AFL reads
+     * with 6A83 like a real card; lenient mode serves them but flags the log.
      */
     private byte[] handleReadRecord(EmvCardEmulatorCore.ParsedApdu apdu) {
         int record = apdu.p1 & 0xFF;
         int sfi = (apdu.p2 & 0xFF) >> 3;
         String key = sfi + "/" + record;
         String aflNote = describeAfl(sfi, record, sessionState);
+        boolean listed = sessionState.activeAfl != null
+                && EmvCardEmulatorCore.isAflListed(sessionState.activeAfl, sfi, record);
+        if (strictAflEnforcement && sessionState.activeAfl != null && !listed) {
+            log("[" + getSchemeName() + "] READ RECORD declined",
+                    "sfi=" + sfi + " rec=" + record + aflNote + " strictAfl=6A83");
+            return concat(new byte[0], SW_RECORD_NOT_FOUND);
+        }
         log("[" + getSchemeName() + "] READ RECORD", "sfi=" + sfi + " rec=" + record + aflNote);
         byte[] record_data = readRecords.get(key);
         if (record_data == null) {

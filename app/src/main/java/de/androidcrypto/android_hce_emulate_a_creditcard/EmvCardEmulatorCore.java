@@ -30,6 +30,7 @@ public final class EmvCardEmulatorCore {
     // ---- Status words ----
     public static final byte[] SW_OK = {(byte) 0x90, (byte) 0x00};
     public static final byte[] SW_FILE_NOT_FOUND = {(byte) 0x6A, (byte) 0x82};
+    public static final byte[] SW_RECORD_NOT_FOUND = {(byte) 0x6A, (byte) 0x83};
     public static final byte[] SW_WRONG_LENGTH = {(byte) 0x67, (byte) 0x00};
     public static final byte[] SW_INS_NOT_SUPPORTED = {(byte) 0x6D, (byte) 0x00};
     public static final byte[] SW_CONDITIONS_NOT_SATISFIED = {(byte) 0x69, (byte) 0x85};
@@ -400,6 +401,20 @@ public final class EmvCardEmulatorCore {
                     afl[o + 3] & 0xFF};
         }
         return out;
+    }
+
+    /**
+     * True when (sfi, record) falls inside any AFL-advertised range.
+     * Used by the strict AFL enforcement mode in the service layer.
+     */
+    public static boolean isAflListed(byte[] afl, int sfi, int record) {
+        int[][] entries = parseAfl(afl);
+        for (int[] e : entries) {
+            if (e[0] == sfi && record >= e[1] && record <= e[2]) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

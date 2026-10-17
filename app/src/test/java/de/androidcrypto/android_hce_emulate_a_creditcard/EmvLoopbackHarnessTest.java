@@ -2,6 +2,7 @@ package de.androidcrypto.android_hce_emulate_a_creditcard;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
@@ -231,5 +232,17 @@ public class EmvLoopbackHarnessTest {
         assertEquals(null, state.activeCdol2);
         assertEquals(0, state.generateAcCount);
         assertEquals(0x0001, state.atc);
+    }
+
+    // Strict AFL gate: isAflListed decides 6A83 vs serve (service layer uses this).
+    @Test
+    public void aflListed_gateDecision() {
+        byte[] afl = hex("5003060050010200");
+        assertTrue(EmvCardEmulatorCore.isAflListed(afl, 10, 3));
+        assertTrue(EmvCardEmulatorCore.isAflListed(afl, 10, 6));
+        assertTrue(EmvCardEmulatorCore.isAflListed(afl, 10, 1));
+        assertFalse(EmvCardEmulatorCore.isAflListed(afl, 10, 7));
+        assertFalse(EmvCardEmulatorCore.isAflListed(afl, 8, 1));
+        assertFalse(EmvCardEmulatorCore.isAflListed(null, 10, 3));
     }
 }
