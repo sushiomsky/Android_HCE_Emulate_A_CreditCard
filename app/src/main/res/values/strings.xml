@@ -50,6 +50,12 @@
     <string name="policy_strict_afl">Strict AFL: decline out-of-AFL READs (6A83)</string>
     <string name="policy_strict_length">Strict length: decline PDOL/CDOL mismatch (6700)</string>
     <string name="share_tap">Share tap export (.apdu)</string>
+    <string name="reader_title">Reader under test</string>
+    <string name="reader_hint">Fingerprint is captured automatically from the next GPO tap (Visa/MC/Imported). Model + firmware come from the reader display or sticker — terminals never report them over NFC.</string>
+    <string name="reader_model">Model (e.g. VP8300)</string>
+    <string name="reader_fw">Firmware (e.g. 1.2.3)</string>
+    <string name="reader_save">Save reader identity</string>
+    <string name="reader_none">No terminal seen yet — tap a reader with any EMV profile first.</string>
     <string name="clear_log">Clear</string>
     <string name="tap_pay_hint">After switching profile, re-select this app under Settings → NFC → Tap and Pay.</string>
 

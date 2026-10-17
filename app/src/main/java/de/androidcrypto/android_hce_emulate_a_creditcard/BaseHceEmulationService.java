@@ -189,6 +189,12 @@ public abstract class BaseHceEmulationService extends HostApduService {
                     "atc=" + String.format("%04X", sessionState.atc)
                             + " un=" + bytesToHexNpe(sessionState.lastUnpredictableNumber)
                             + pdolNote);
+            TerminalFingerprint.Fingerprint fp =
+                    TerminalFingerprint.summarize(sessionState.activePdol, apdu.data);
+            if (fp != null) {
+                log("[" + getSchemeName() + "] terminal fp", fp.toString());
+                ReaderTestDb.setLastFingerprint(this, fp.id, fp.toString());
+            }
             return maybeChain(dynamic);
         }
 

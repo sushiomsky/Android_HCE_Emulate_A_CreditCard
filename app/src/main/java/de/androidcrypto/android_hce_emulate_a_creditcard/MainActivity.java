@@ -81,6 +81,10 @@ public class MainActivity extends AppCompatActivity {
     private CheckBox cbLabProbe;
     private CheckBox cbStrictAfl;
     private CheckBox cbStrictLength;
+    private TextView tvReaderFp;
+    private TextView tvReaderLast;
+    private EditText etReaderModel;
+    private EditText etReaderFw;
     private EditText etLabLen;
     private final ArrayDeque<String> logLines = new ArrayDeque<>();
     private boolean suppressProfileCallback = false;
@@ -118,6 +122,13 @@ public class MainActivity extends AppCompatActivity {
         cbLabProbe = findViewById(R.id.cbLabProbe);
         cbStrictAfl = findViewById(R.id.cbStrictAfl);
         cbStrictLength = findViewById(R.id.cbStrictLength);
+        tvReaderFp = findViewById(R.id.tvReaderFp);
+        tvReaderLast = findViewById(R.id.tvReaderLast);
+        etReaderModel = findViewById(R.id.etReaderModel);
+        etReaderFw = findViewById(R.id.etReaderFw);
+        Button btnReaderSave = findViewById(R.id.btnReaderSave);
+        btnReaderSave.setOnClickListener(v -> onReaderSave());
+        updateReaderCard();
         etLabLen = findViewById(R.id.etLabLen);
 
         styleRadio(R.id.rbVisa, getString(R.string.profile_visa), getString(R.string.profile_visa_aid));
@@ -358,6 +369,55 @@ public class MainActivity extends AppCompatActivity {
     public void onResume() {
         super.onResume();
         updateNfcStatus();
+        updateReaderCard();
+    }
+
+    private void onReaderSave() {
+        String saved = ReaderTestDb.getLastFingerprint(this);
+        if (saved == null) {
+            showAToast(this, "No terminal seen yet — tap a reader first");
+            return;
+        }
+        int nl = saved.indexOf('\n');
+        String id = nl > 0 ? saved.substring(0, nl) : saved;
+        String detail = nl > 0 ? saved.substring(nl + 1) : "";
+        String model = etReaderModel.getText().toString().trim();
+        String fw = etReaderFw.getText().toString().trim();
+        ReaderTestDb.identify(this, id, detail, model, fw);
+        showAToast(this, "Reader saved: " + (model.isEmpty() ? id : model + " " + fw));
+        appendMessageToLog("reader saved", (model.isEmpty() ? id : model + " " + fw) + " [" + id + "]");
+        updateReaderCard();
+    }
+
+    private void updateReaderCard() {
+        String saved = ReaderTestDb.getLastFingerprint(this);
+        if (saved == null) {
+            tvReaderFp.setText(getString(R.string.reader_none));
+        } else {
+            tvReaderFp.setText(saved);
+        }
+        // last test summary for the visible fingerprint, if any
+        String summary = "";
+        if (saved != null) {
+            int nl = saved.indexOf('\n');
+            String id = nl > 0 ? saved.substring(0, nl) : saved;
+            for (ReaderTestDb.Reader r : ReaderTestDb.list(this)) {
+                if (r.fp.equals(id)) {
+                    String label = (r.model.isEmpty() ? id : r.model + " " + r.fw).trim();
+                    int anomalies = 0;
+                    for (ReaderTestDb.Step s : r.steps) {
+                        if (s.verdict.startsWith("ANOMALY")) anomalies++;
+                    }
+                    summary = label + ": " + r.steps.size() + " steps, " + anomalies + " anomalies";
+                    if (!r.model.isEmpty() && etReaderModel.getText().length() == 0) {
+                        etReaderModel.setText(r.model);
+                        etReaderFw.setText(r.fw);
+                    }
+                    break;
+                }
+            }
+        }
+        tvReaderLast.setText(summary);
     }
 
     @Override

@@ -91,9 +91,22 @@ public class HceCcEmulationServiceBasic extends HostApduService {
         if (lastRespTime > 0) {
             long dwell = android.os.SystemClock.elapsedRealtime() - lastRespTime;
             sendMessageToActivity("reader dwell", dwell + "ms after " + lastStep);
+            // heuristic verdict: an instant drop right after a big/malformed step
+            // hints the reader choked instead of processing normally
+            String verdict = dwell < 150 ? "ANOMALY fast-drop (heuristic)" : "OK";
+            sendMessageToActivity("step verdict", verdict + " | " + lastStep);
+            String fp = prefsFpId();
+            ReaderTestDb.appendStep(this, fp, lastStep, dwell, verdict);
             lastRespTime = 0;
             lastStep = "";
         }
+    }
+
+    private String prefsFpId() {
+        String saved = ReaderTestDb.getLastFingerprint(this);
+        if (saved == null) return "unknown-terminal";
+        int nl = saved.indexOf('\n');
+        return nl > 0 ? saved.substring(0, nl) : saved;
     }
 
     /**
