@@ -245,4 +245,13 @@ public class EmvLoopbackHarnessTest {
         assertFalse(EmvCardEmulatorCore.isAflListed(afl, 8, 1));
         assertFalse(EmvCardEmulatorCore.isAflListed(null, 10, 3));
     }
+
+    // AC type decode from GENERATE AC P1 (EMV bit 7 = TC, bit 6 = ARQC, else AAC).
+    @Test
+    public void acType_decodeFromP1() {
+        assertEquals("ARQC", EmvCardEmulatorCore.acTypeFromP1((byte) 0x40));
+        assertEquals("TC", EmvCardEmulatorCore.acTypeFromP1((byte) 0x80));
+        assertEquals("TC", EmvCardEmulatorCore.acTypeFromP1((byte) 0xC0));
+        assertEquals("AAC", EmvCardEmulatorCore.acTypeFromP1((byte) 0x00));
+    }
 }

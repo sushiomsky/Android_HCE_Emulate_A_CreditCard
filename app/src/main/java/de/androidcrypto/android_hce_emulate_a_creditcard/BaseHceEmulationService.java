@@ -52,6 +52,21 @@ public abstract class BaseHceEmulationService extends HostApduService {
      * they are served from the fixture and flagged in the log — friendlier for
      * lab readers that probe extra records. Subclasses may flip this.
      */
+    /**
+     * PDOL/CDOL length-contract policy for GPO and GENERATE AC.
+     *
+     * <ul>
+     * <li>{@code LENIENT} (default): serve the template anyway, log the mismatch —
+     * friendlier for lab readers that send non-standard PDOL values.</li>
+     * <li>{@code STRICT}: decline with 6700 when the values length differs from the
+     * captured PDOL/CDOL contract, like a real card would.</li>
+     * </ul>
+     */
+    public enum LengthPolicy { LENIENT, STRICT }
+
+    protected LengthPolicy lengthPolicy = LengthPolicy.LENIENT;
+
+    /** Strict AFL mode (see handleReadRecord javadoc). Subclasses may flip this. */
     protected boolean strictAflEnforcement = false;
 
     /** Upper bound for the first chunk before 61xx chaining kicks in. */
@@ -136,9 +151,14 @@ public abstract class BaseHceEmulationService extends HostApduService {
 
         // GET PROCESSING OPTIONS: dynamic UN echo + ATC increment.
         if (apdu.cla == (byte) 0x80 && apdu.ins == INS_GPO) {
+            String pdolNote = describePdol(apdu.data, sessionState);
+            if (lengthPolicy == LengthPolicy.STRICT && pdolNote.contains("MISMATCH")) {
+                log("[" + getSchemeName() + "] GPO declined",
+                        "pdol length mismatch, strict policy" + pdolNote);
+                return concat(new byte[0], SW_WRONG_LENGTH);
+            }
             byte[] dynamic = EmvCardEmulatorCore.buildDynamicGpoResponse(
                     gpoTemplate, apdu.data, sessionState, cvc3ByAtc);
-            String pdolNote = describePdol(apdu.data, sessionState);
             log("[" + getSchemeName() + "] GPO dynamic",
                     "atc=" + String.format("%04X", sessionState.atc)
                             + " un=" + bytesToHexNpe(sessionState.lastUnpredictableNumber)
@@ -166,8 +186,17 @@ public abstract class BaseHceEmulationService extends HostApduService {
         if (apdu.cla == (byte) 0x80 && apdu.ins == INS_GENERATE_AC) {
             sessionState.generateAcCount++;
             String cdolNote = describeCdol(apdu.data, sessionState);
+            String acType = EmvCardEmulatorCore.acTypeFromP1(apdu.p1);
+            if (lengthPolicy == LengthPolicy.STRICT && cdolNote.contains("MISMATCH")) {
+                log("[" + getSchemeName() + "] GENERATE AC #" + sessionState.generateAcCount
+                                + " declined",
+                        "type=" + acType + " strict policy" + cdolNote);
+                return concat(new byte[0], SW_WRONG_LENGTH);
+            }
             log("[" + getSchemeName() + "] GENERATE AC #" + sessionState.generateAcCount,
-                    "p1=" + String.format("%02X", apdu.p1) + " lc=" + apdu.data.length + cdolNote);
+                    "type=" + acType
+                            + " p1=" + String.format("%02X", apdu.p1)
+                            + " lc=" + apdu.data.length + cdolNote);
             byte[] template = generateAcTemplate;
             if (sessionState.generateAcCount >= 2 && generateAcSecondTemplate != null) {
                 template = generateAcSecondTemplate;

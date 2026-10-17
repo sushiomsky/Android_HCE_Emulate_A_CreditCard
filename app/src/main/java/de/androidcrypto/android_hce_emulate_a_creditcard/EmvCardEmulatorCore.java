@@ -404,6 +404,22 @@ public final class EmvCardEmulatorCore {
     }
 
     /**
+     * GENERATE AC cryptogram type from the P1 reference-control byte:
+     * bit 7 set = TC (online-completed), bit 6 set = ARQC (online), else AAC (decline).
+     * Returns "AAC"/"TC"/"ARQC". Pure decode helper for log lines.
+     */
+    public static String acTypeFromP1(byte p1) {
+        int v = p1 & 0xFF;
+        if ((v & 0x80) != 0) {
+            return "TC";
+        }
+        if ((v & 0x40) != 0) {
+            return "ARQC";
+        }
+        return "AAC";
+    }
+
+    /**
      * True when (sfi, record) falls inside any AFL-advertised range.
      * Used by the strict AFL enforcement mode in the service layer.
      */
