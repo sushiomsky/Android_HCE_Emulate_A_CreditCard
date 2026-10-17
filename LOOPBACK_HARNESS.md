@@ -16,7 +16,6 @@ loopback on the JVM - no NFC hardware, no second phone needed.
 | 8 | PDOL-driven UN (real 9F38 field walk), AFL ranges, nested TLV lookup, session reset incl. PDOL/AFL/CDOL/AC-count | `pdolDriven_unLocatedByPdol`, `afl_parseRanges`, `findTlv_nestedLookup`, `sessionReset_clearsPdolAflCdolAcCount` |
 
 ## Golden-trace tests (`EmvGoldenTraceTest`)
-
 One full tap per scheme through `EmvCardEmulatorCore.simulateTap` — SELECT PPSE,
 SELECT AID, GPO (UN echo + ATC + AFL capture), the reader's READ RECORDs
 (AFL-listed gate + fixture presence), GENERATE AC template check, live-ATC
@@ -33,8 +32,19 @@ GET DATA. C-APDUs come from the repo's sample reader logs:
 ```bash
 export ANDROID_HOME=/opt/android-sdk ANDROID_SDK_ROOT=/opt/android-sdk
 ./gradlew :app:testDebugUnitTest --tests \
-  'de.androidcrypto.android_hce_emulate_a_creditcard.EmvLoopbackHarnessTest'
+  'de.androidcrypto.android_hce_emulate_a_creditcard.EmvLoopbackHarnessTest' \
+  --tests 'de.androidcrypto.android_hce_emulate_a_creditcard.EmvGoldenTraceTest' \
+  --tests 'de.androidcrypto.android_hce_emulate_a_creditcard.EmvParserFuzzTest'
 ```
+
+## Parser fuzzing (`EmvParserFuzzTest`)
+
+Deterministic-seed fuzzing (same failures reproduce every run): the LabProbe
+malformed-response corpus plus bit-flip / truncation / splice / Lc-swap
+mutations go both directions — as C-APDUs into `parse`, as TLV blobs into
+`findTlv`. Asserts: never throws, never null fields, well-formed reader
+C-APDUs stay unflagged, every truncation into declared Lc is flagged
+suspicious.
 
 Pure-JVM alternative (no Gradle): `EmvCardEmulatorCore` has zero Android
 imports, so it compiles standalone:

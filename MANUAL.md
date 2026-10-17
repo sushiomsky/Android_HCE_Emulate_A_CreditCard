@@ -345,8 +345,9 @@ Fixed along the way: Mastercard record keys now use wire SFI numbering
 
 Near term: PDOL-length mismatch handling (decline vs. best-effort echo policy —
 `STRICT` policy exists at the service layer, needs an on-device policy toggle),
-Medium term: profile editor UI, pcap-style tap export, parser fuzzing with the
-LabProbe corpus both directions. Non-goals, permanently: real cryptogram
+Medium term: profile editor UI, pcap-style tap export. Done: parser fuzzing with
+the LabProbe corpus both directions (`EmvParserFuzzTest`: deterministic seed,
+never-throws + truncation-flagging). Non-goals, permanently: real cryptogram
 computation, real PAN support, anything authorizable.
 
 ## 9. License & sources
