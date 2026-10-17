@@ -8,10 +8,11 @@ loopback on the JVM - no NFC hardware, no second phone needed.
 | # | Improvement | Test |
 |---|-------------|------|
 | 1 | APDU parser dispatches on CLA/INS/P1/P2/Lc (SELECT A4, GPO A8, READ B2, GENERATE AC AE, GET DATA CA, GET RESPONSE C0) | `parseSelectPpse_fields`, `parseSelectAid_routingPerAid`, `parseGpo_case4ShortLc`, `readerConversation_allInstructionsParse` |
-| 2 | Dynamic GPO: terminal UN echoed, ATC incremented per tap, optional CVC3 dictionary | `gpoDynamic_unEchoAndAtcIncrement`, `gpoDynamic_cvc3DictionaryPatch` |
+| 2 | Dynamic GPO: terminal UN echoed, ATC incremented per tap, optional CVC3 dictionary | `gpoDynamic_unEchoAndAtcIncrement`, `gpoDynamic_cvc3DictionaryPatch`, `pdolDriven_unLocatedByPdol` |
 | 4 | Per-AID routing incl. Amex A000000025 + Discover A000000152 | `parseSelectAid_routingPerAid` |
 | 5 | Extended-length APDU accept + 61xx/GET RESPONSE chaining + absurd-Lc flagging | `parseExtendedLength_accepts`, `parseAbsurdShortLc_flagged`, `chaining_splitAndStatus` |
 | 6 | `arrayBeginsWith` prefix matching | `prefixMatch_gpoHeader` |
+| 8 | PDOL-driven UN (real 9F38 field walk), AFL ranges, nested TLV lookup, session reset incl. PDOL/AFL/CDOL/AC-count | `pdolDriven_unLocatedByPdol`, `afl_parseRanges`, `findTlv_nestedLookup`, `sessionReset_clearsPdolAflCdolAcCount` |
 
 ## Run it
 

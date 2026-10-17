@@ -180,8 +180,9 @@ then routes taps only to that service. **After switching, re-select the app
 under Settings → NFC → Tap and Pay** (Android caches the default).
 
 - **Visa** (`A0000000031010`, test PAN `4111111111111111`): the richest trace —
-  full GPO template with AIP/AFL/track-2, 4 READ records (SFI 10, rec 3–6),
-  GENERATE AC template, dynamic ATC from `0x03AA` (the recorded value).
+  full GPO template with AIP/AFL/track-2, PDOL-driven UN echo (real 9F38 from
+  the SELECT FCI), AFL-validated READ records (SFI 10, rec 3–6), first + second
+  GENERATE AC templates (CDOL1/CDOL2), dynamic ATC from `0x03AA`.
 - **Mastercard** (`A0000000041010`, test PAN `5555555555554444`): records on
   SFI 8/10/20, null-PDOL GPO path (short `7712…` template), ATC from `0x0001`.
 - **Amex** (`A000000025`, test PAN `378282246310005`): minimal 15-digit-PAN
@@ -328,12 +329,19 @@ replayed cryptograms, use TalkToYourCreditCard for first tests.
 
 ## 8. Future development plan
 
-Near term: PDOL-driven GPO (parse real 9F38 from SELECT FCI), CDOL + second
-GENERATE AC pass, AFL-driven READ routing (from tag 94), explicit MagStripe
-`80 2A 8E 80` decline line. Medium term: per-scheme golden-trace tests, profile
-editor UI, pcap-style tap export, parser fuzzing with the LabProbe corpus both
-directions. Non-goals, permanently: real cryptogram computation, real PAN
-support, anything authorizable.
+Done since the last roadmap review: PDOL-driven GPO (real 9F38 captured from
+the SELECT FCI, UN located field-by-field), CDOL1/CDOL2 collection from record
+data with 1st/2nd GENERATE AC routing, AFL-driven READ validation (from tag
+94), explicit MagStripe `80 2A 8E 80` decline (`6985`), per-APDU length-contract
+logging (PDOL/AFL/CDOL match vs `MISMATCH`).
+
+Near term: strict AFL enforcement mode (flag, don't serve, out-of-AFL reads —
+currently logged only), PDOL-length mismatch handling (decline vs. best-effort
+echo policy), second-AC cryptogram-type branching (ARQC/TC/AAC via P1 bits).
+Medium term: per-scheme golden-trace tests, profile editor UI, pcap-style tap
+export, parser fuzzing with the LabProbe corpus both directions. Non-goals,
+permanently: real cryptogram computation, real PAN support, anything
+authorizable.
 
 ## 9. License & sources
 

@@ -54,6 +54,16 @@ public final class EmvCardEmulatorCore {
     public static final byte INS_GENERATE_AC = (byte) 0xAE;
     public static final byte INS_GET_DATA = (byte) 0xCA;
     public static final byte INS_GET_RESPONSE = (byte) 0xC0;
+    public static final byte INS_COMPUTE_CRYPTO_CHECKSUM = (byte) 0x2A; // MagStripe CCC
+
+    /** PDOL tag expected on the SELECT FCI (tag 9F38: tag+length shopping list). */
+    public static final int TAG_PDOL = 0x9F38;
+    /** AFL tag inside the GPO response (tag 94: SFI/record ranges to read). */
+    public static final int TAG_AFL = 0x94;
+    /** CDOL1 tag inside READ RECORD data (tag 8C: GENERATE AC shopping list). */
+    public static final int TAG_CDOL1 = 0x8C;
+    /** CDOL2 tag inside READ RECORD data (tag 8D: 2nd GENERATE AC shopping list). */
+    public static final int TAG_CDOL2 = 0x8D;
 
     /** Parsed Command APDU (short or extended length). */
     public static final class ParsedApdu {
@@ -224,6 +234,16 @@ public final class EmvCardEmulatorCore {
         public int atc;
         public byte[] lastUnpredictableNumber = new byte[0];
         public byte[] pendingChainedResponse; // bytes still to deliver via GET RESPONSE (61xx)
+        /** Raw PDOL bytes (tag+length list from SELECT 9F38) captured at SELECT time. */
+        public byte[] activePdol;
+        /** Raw AFL bytes (tag 94 from the GPO template) captured at GPO time. */
+        public byte[] activeAfl;
+        /** CDOL1 bytes collected from READ RECORD data (tag 8C). */
+        public byte[] activeCdol1;
+        /** CDOL2 bytes collected from READ RECORD data (tag 8D). */
+        public byte[] activeCdol2;
+        /** GENERATE AC calls seen this tap (drives 1st vs 2nd AC template selection). */
+        public int generateAcCount;
 
         public SessionState(int initialAtc) {
             this.atc = initialAtc & 0xFFFF;
@@ -233,14 +253,27 @@ public final class EmvCardEmulatorCore {
             this.atc = initialAtc & 0xFFFF;
             this.lastUnpredictableNumber = new byte[0];
             this.pendingChainedResponse = null;
+            this.activePdol = null;
+            this.activeAfl = null;
+            this.activeCdol1 = null;
+            this.activeCdol2 = null;
+            this.generateAcCount = 0;
         }
     }
 
     /**
      * Extract tag 9F37 (unpredictable number) from the GPO PDOL-related data field.
      * Returns empty array when absent (e.g. Mastercard null-PDOL path).
+     *
+     * <p>When the session carries the real PDOL (tag+length list from SELECT 9F38),
+     * the UN is located by walking the PDOL field-by-field instead of assuming a
+     * fixed layout; otherwise the legacy trailing-4-bytes heuristic applies.
      */
     public static byte[] extractUnpredictableNumber(byte[] gpoData) {
+        return extractUnpredictableNumber(gpoData, null);
+    }
+
+    public static byte[] extractUnpredictableNumber(byte[] gpoData, byte[] pdol) {
         if (gpoData == null || gpoData.length == 0) {
             return new byte[0];
         }
@@ -256,9 +289,17 @@ public final class EmvCardEmulatorCore {
             }
             values = Arrays.copyOfRange(gpoData, start, start + len);
         }
-        // The Visa PDOL in this repo ends with 9F37 (4 bytes) as the last field:
+        if (pdol != null && pdol.length > 0) {
+            byte[] located = locatePdolField(values, pdol, 0x9F37);
+            if (located != null) {
+                return located;
+            }
+            // PDOL known but carries no UN (e.g. null-PDOL path): no echo.
+            return new byte[0];
+        }
+        // Legacy fallback (no PDOL captured): the Visa PDOL in this repo ends with
+        // 9F37 (4 bytes) as the last field:
         // 9F66(4) 9F02(6) 9F03(6) 9F1A(2) 95(5) 5F2A(2) 9A(3) 9C(1) 9F37(4).
-        // Take the last 4 bytes as UN when the length matches that layout.
         int expectedPdolLength = 4 + 6 + 6 + 2 + 5 + 2 + 3 + 1 + 4; // 33
         if (values.length == expectedPdolLength) {
             return Arrays.copyOfRange(values, values.length - 4, values.length);
@@ -268,6 +309,144 @@ public final class EmvCardEmulatorCore {
             return Arrays.copyOfRange(values, values.length - 4, values.length);
         }
         return new byte[0];
+    }
+
+    /**
+     * Slice one field out of PDOL values using the PDOL tag+length list.
+     * Returns null when the tag is absent or the values are shorter than declared.
+     */
+    public static byte[] locatePdolField(byte[] values, byte[] pdol, int wantedTag) {
+        int offset = 0;
+        int pos = 0;
+        while (pos < pdol.length) {
+            int[] tag = readTag(pdol, pos);
+            if (tag == null) {
+                return null;
+            }
+            pos = tag[1];
+            if (pos >= pdol.length) {
+                return null;
+            }
+            int fieldLen = pdol[pos++] & 0xFF;
+            if (tag[0] == wantedTag) {
+                if (offset + fieldLen > values.length) {
+                    return null;
+                }
+                return Arrays.copyOfRange(values, offset, offset + fieldLen);
+            }
+            offset += fieldLen;
+        }
+        return null;
+    }
+
+    /** Total PDOL values length (sum of field lengths); -1 when malformed. */
+    public static int pdolValuesLength(byte[] pdol) {
+        if (pdol == null) {
+            return -1;
+        }
+        int total = 0;
+        int pos = 0;
+        while (pos < pdol.length) {
+            int[] tag = readTag(pdol, pos);
+            if (tag == null) {
+                return -1;
+            }
+            pos = tag[1];
+            if (pos >= pdol.length) {
+                return -1;
+            }
+            total += pdol[pos++] & 0xFF;
+        }
+        return total;
+    }
+
+    /** Read a BER tag at offset; returns {tag, nextOffset} or null. */
+    private static int[] readTag(byte[] buffer, int offset) {
+        if (offset >= buffer.length) {
+            return null;
+        }
+        int t = buffer[offset++] & 0xFF;
+        if ((t & 0x1F) == 0x1F) {
+            do {
+                if (offset >= buffer.length) {
+                    return null;
+                }
+                int b = buffer[offset++] & 0xFF;
+                t = (t << 8) | b;
+                if ((b & 0x80) == 0) {
+                    break;
+                }
+            } while (true);
+        }
+        return new int[]{t, offset};
+    }
+
+    /**
+     * Parse an AFL (tag 94 value) into {sfi, firstRecord, lastRecord, offlineAuthRecords}
+     * quadruples. Trailing incomplete bytes are ignored.
+     */
+    public static int[][] parseAfl(byte[] afl) {
+        if (afl == null || afl.length < 4) {
+            return new int[0][];
+        }
+        int entries = afl.length / 4;
+        int[][] out = new int[entries][];
+        for (int i = 0; i < entries; i++) {
+            int o = i * 4;
+            out[i] = new int[]{
+                    (afl[o] & 0xFF) >> 3,
+                    afl[o + 1] & 0xFF,
+                    afl[o + 2] & 0xFF,
+                    afl[o + 3] & 0xFF};
+        }
+        return out;
+    }
+
+    /**
+     * Find a TLV value by tag anywhere nested in the buffer (any length).
+     * Returns null when absent or malformed.
+     */
+    public static byte[] findTlv(byte[] buffer, int tag) {
+        int start = 0;
+        if (buffer != null && buffer.length >= 2 && (buffer[0] == (byte) 0x77
+                || buffer[0] == (byte) 0x80 || buffer[0] == (byte) 0x70
+                || buffer[0] == (byte) 0x6F)) {
+            int[] outer = readLength(buffer, 1);
+            if (outer == null) {
+                return null;
+            }
+            start = outer[1];
+        }
+        return findTlvAt(buffer, start, buffer.length, tag);
+    }
+
+    private static byte[] findTlvAt(byte[] buffer, int pos, int end, int tag) {
+        while (buffer != null && pos + 2 <= end) {
+            int tagStart = pos;
+            int[] t = readTag(buffer, pos);
+            if (t == null) {
+                return null;
+            }
+            int valueLenPos = t[1];
+            int[] len = readLength(buffer, valueLenPos);
+            if (len == null || len[0] < 0 || len[1] + len[0] > end) {
+                return null;
+            }
+            if (t[0] == tag) {
+                return Arrays.copyOfRange(buffer, len[1], len[1] + len[0]);
+            }
+            boolean constructed = (buffer[tagStart] & 0x20) != 0
+                    && t[0] != 0x50 && t[0] != 0x5A && t[0] != 0x57
+                    && t[0] != 0x56 && t[0] != 0x9F12;
+            if (constructed) {
+                byte[] nested = findTlvAt(buffer, len[1], len[1] + len[0], tag);
+                if (nested != null) {
+                    return nested;
+                }
+            }
+            pos = len[1] + len[0];
+        }
+        return null;
     }
 
     /**
@@ -284,7 +463,7 @@ public final class EmvCardEmulatorCore {
     public static byte[] buildDynamicGpoResponse(byte[] gpoTemplate, byte[] gpoData,
             SessionState state, java.util.Map<Integer, byte[]> cvc3ByAtc) {
         byte[] out = Arrays.copyOf(gpoTemplate, gpoTemplate.length);
-        byte[] un = extractUnpredictableNumber(gpoData);
+        byte[] un = extractUnpredictableNumber(gpoData, state.activePdol);
         state.lastUnpredictableNumber = un;
         state.atc = (state.atc + 1) & 0xFFFF;
         if (un.length > 0) {
@@ -296,6 +475,12 @@ public final class EmvCardEmulatorCore {
             if (cvc3 != null && cvc3.length == 2) {
                 patchTlv(out, 0x9F62, cvc3);
             }
+        }
+        // Capture the AFL the template advertises so READ RECORD can be validated
+        // against it (AFL-driven routing, roadmap near-term item).
+        byte[] afl = findTlv(out, TAG_AFL);
+        if (afl != null) {
+            state.activeAfl = afl;
         }
         return out;
     }

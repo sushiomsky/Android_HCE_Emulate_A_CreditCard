@@ -164,13 +164,72 @@ public class EmvLoopbackHarnessTest {
                 "80AE00002D000000000000000100000000000000097800000000000978230301003839303100",
                 "80CA9F3600",
                 "00C00000FF",
+                "802A8E80040000000000",
         };
         byte[] expectedIns = {(byte) 0xA4, (byte) 0xA4, (byte) 0xA8,
-                (byte) 0xB2, (byte) 0xAE, (byte) 0xCA, (byte) 0xC0};
+                (byte) 0xB2, (byte) 0xAE, (byte) 0xCA, (byte) 0xC0, (byte) 0x2A};
         for (int i = 0; i < capdus.length; i++) {
             EmvCardEmulatorCore.ParsedApdu apdu =
                     EmvCardEmulatorCore.parse(hex(capdus[i]));
             assertEquals("C-APDU " + capdus[i], expectedIns[i], apdu.ins);
         }
+    }
+
+    // PDOL-driven GPO: UN located field-by-field from the real SELECT PDOL.
+    @Test
+    public void pdolDriven_unLocatedByPdol() {
+        // PDOL: amount(6) + UN(4) + date(3); UN sits in the middle, not at the end.
+        byte[] pdol = hex("9F02069F37049A03");
+        byte[] values = hex("000000001000AABBCCDD230301");
+        assertArrayEquals(hex("AABBCCDD"),
+                EmvCardEmulatorCore.extractUnpredictableNumber(values, pdol));
+        assertEquals(13, EmvCardEmulatorCore.pdolValuesLength(pdol));
+        // PDOL without UN -> no echo (strict, no trailing-bytes guess).
+        assertEquals(0, EmvCardEmulatorCore.extractUnpredictableNumber(
+                hex("000000001000230301"), hex("9F02069A03")).length);
+    }
+
+    // AFL parsing: SFI/record ranges from tag 94.
+    @Test
+    public void afl_parseRanges() {
+        // AFL: two entries, SFI 10 rec 3-6 and SFI 10 rec 1-2 (0x50 = 10 << 3).
+        int[][] entries = EmvCardEmulatorCore.parseAfl(hex("5003060050010200"));
+        assertEquals(2, entries.length);
+        assertEquals(10, entries[0][0]);
+        assertEquals(3, entries[0][1]);
+        assertEquals(6, entries[0][2]);
+        assertEquals(10, entries[1][0]);
+        assertEquals(1, entries[1][1]);
+        assertEquals(2, entries[1][2]);
+    }
+
+    // findTlv: nested tag lookup used for PDOL/AFL/CDOL capture.
+    @Test
+    public void findTlv_nestedLookup() {
+        byte[] fci = hex("6F2C8407A0000000031010A521"
+                + "5004564953419F38189F66049F02069F03069F1A0295055F2A029A039C019F3704");
+        assertArrayEquals(hex("9F66049F02069F03069F1A0295055F2A029A039C019F3704"),
+                EmvCardEmulatorCore.findTlv(fci, 0x9F38));
+        assertEquals(null, EmvCardEmulatorCore.findTlv(fci, 0x94));
+        byte[] gpo = hex("770E820200009404500306009F360203AA");
+        assertArrayEquals(hex("50030600"), EmvCardEmulatorCore.findTlv(gpo, 0x94));
+    }
+
+    // Session reset clears PDOL/AFL/CDOL/AC-count alongside ATC/UN/chaining.
+    @Test
+    public void sessionReset_clearsPdolAflCdolAcCount() {
+        EmvCardEmulatorCore.SessionState state = new EmvCardEmulatorCore.SessionState(0x0001);
+        state.activePdol = hex("9F3704");
+        state.activeAfl = hex("50030600");
+        state.activeCdol1 = hex("9F0206");
+        state.activeCdol2 = hex("9F02069F3704");
+        state.generateAcCount = 2;
+        state.reset(0x0001);
+        assertEquals(null, state.activePdol);
+        assertEquals(null, state.activeAfl);
+        assertEquals(null, state.activeCdol1);
+        assertEquals(null, state.activeCdol2);
+        assertEquals(0, state.generateAcCount);
+        assertEquals(0x0001, state.atc);
     }
 }

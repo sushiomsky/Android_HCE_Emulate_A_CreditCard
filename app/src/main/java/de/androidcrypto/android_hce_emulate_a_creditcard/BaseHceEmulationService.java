@@ -1,5 +1,6 @@
 package de.androidcrypto.android_hce_emulate_a_creditcard;
 
+import static de.androidcrypto.android_hce_emulate_a_creditcard.EmvCardEmulatorCore.INS_COMPUTE_CRYPTO_CHECKSUM;
 import static de.androidcrypto.android_hce_emulate_a_creditcard.EmvCardEmulatorCore.INS_GENERATE_AC;
 import static de.androidcrypto.android_hce_emulate_a_creditcard.EmvCardEmulatorCore.INS_GET_DATA;
 import static de.androidcrypto.android_hce_emulate_a_creditcard.EmvCardEmulatorCore.INS_GET_RESPONSE;
@@ -55,6 +56,7 @@ public abstract class BaseHceEmulationService extends HostApduService {
     private byte[] gpoTemplate;
     private Map<String, byte[]> readRecords;
     private byte[] generateAcTemplate;
+    private byte[] generateAcSecondTemplate; // 2nd GENERATE AC (after issuer auth) answer
     private Map<String, byte[]> getDataObjects;
 
     protected abstract String getSchemeName();
@@ -69,11 +71,22 @@ public abstract class BaseHceEmulationService extends HostApduService {
      */
     protected final void setProfile(byte[] ppseResponse, byte[] aidResponse, byte[] gpoResponseTemplate,
             Map<String, byte[]> records, byte[] acTemplate, Map<String, byte[]> dataObjects) {
+        setProfile(ppseResponse, aidResponse, gpoResponseTemplate, records, acTemplate, null, dataObjects);
+    }
+
+    /**
+     * Full variant with a distinct 2nd-GENERATE-AC template (CDOL2 pass). Null =
+     * reuse the 1st-AC template for both passes.
+     */
+    protected final void setProfile(byte[] ppseResponse, byte[] aidResponse, byte[] gpoResponseTemplate,
+            Map<String, byte[]> records, byte[] acTemplate, byte[] acSecondTemplate,
+            Map<String, byte[]> dataObjects) {
         this.selectPpseResponse = ppseResponse;
         this.selectAidResponse = aidResponse;
         this.gpoTemplate = gpoResponseTemplate;
         this.readRecords = records == null ? new HashMap<String, byte[]>() : records;
         this.generateAcTemplate = acTemplate;
+        this.generateAcSecondTemplate = acSecondTemplate;
         this.getDataObjects = dataObjects == null ? new HashMap<String, byte[]>() : dataObjects;
     }
 
@@ -116,23 +129,42 @@ public abstract class BaseHceEmulationService extends HostApduService {
         if (apdu.cla == (byte) 0x80 && apdu.ins == INS_GPO) {
             byte[] dynamic = EmvCardEmulatorCore.buildDynamicGpoResponse(
                     gpoTemplate, apdu.data, sessionState, cvc3ByAtc);
+            String pdolNote = describePdol(apdu.data, sessionState);
             log("[" + getSchemeName() + "] GPO dynamic",
                     "atc=" + String.format("%04X", sessionState.atc)
-                            + " un=" + bytesToHexNpe(sessionState.lastUnpredictableNumber));
+                            + " un=" + bytesToHexNpe(sessionState.lastUnpredictableNumber)
+                            + pdolNote);
             return maybeChain(dynamic);
         }
 
-        // READ RECORD: P1 = record number, P2 = (SFI &lt;&lt; 3) | 4.
+        // READ RECORD: P1 = record number, P2 = (SFI << 3) | 4.
         if (apdu.ins == INS_READ_RECORD) {
             return handleReadRecord(apdu);
         }
 
-        // GENERATE AC: acknowledge with a static template + SW (lab replay fixture).
+        // MagStripe COMPUTE CRYPTOGRAPHIC CHECKSUM (80 2A 8E 80): this fixture has
+        // no mag-stripe keys, so decline explicitly instead of a misleading 9000.
+        if (apdu.cla == (byte) 0x80 && apdu.ins == INS_COMPUTE_CRYPTO_CHECKSUM) {
+            log("[" + getSchemeName() + "] MagStripe CCC declined",
+                    "p1=" + String.format("%02X", apdu.p1)
+                            + " p2=" + String.format("%02X", apdu.p2)
+                            + " lc=" + apdu.data.length + " (no mag-stripe keys in fixture)");
+            return concat(new byte[0], SW_CONDITIONS_NOT_SATISFIED);
+        }
+
+        // GENERATE AC: 1st call answers the CDOL1 template, 2nd+ calls (after issuer
+        // authentication) answer the CDOL2 template when the profile provides one.
         if (apdu.cla == (byte) 0x80 && apdu.ins == INS_GENERATE_AC) {
-            log("[" + getSchemeName() + "] GENERATE AC",
-                    "p1=" + String.format("%02X", apdu.p1) + " lc=" + apdu.data.length);
-            if (generateAcTemplate != null) {
-                return maybeChain(generateAcTemplate);
+            sessionState.generateAcCount++;
+            String cdolNote = describeCdol(apdu.data, sessionState);
+            log("[" + getSchemeName() + "] GENERATE AC #" + sessionState.generateAcCount,
+                    "p1=" + String.format("%02X", apdu.p1) + " lc=" + apdu.data.length + cdolNote);
+            byte[] template = generateAcTemplate;
+            if (sessionState.generateAcCount >= 2 && generateAcSecondTemplate != null) {
+                template = generateAcSecondTemplate;
+            }
+            if (template != null) {
+                return maybeChain(template);
             }
             return concat(new byte[0], SW_CONDITIONS_NOT_SATISFIED);
         }
@@ -158,8 +190,16 @@ public abstract class BaseHceEmulationService extends HostApduService {
                     bytesToHexNpe(apdu.data));
             return concat(new byte[0], SW_FILE_NOT_FOUND);
         }
+        // Capture the real PDOL (9F38) from the SELECT FCI so GPO can locate the
+        // unpredictable number field-by-field instead of assuming a fixed layout.
+        byte[] pdol = EmvCardEmulatorCore.findTlv(selectAidResponse,
+                EmvCardEmulatorCore.TAG_PDOL);
+        if (pdol != null) {
+            sessionState.activePdol = pdol;
+        }
         log("[" + getSchemeName() + "] SELECT AID (" + route + ")",
-                bytesToHexNpe(apdu.data));
+                bytesToHexNpe(apdu.data)
+                        + (pdol != null ? " pdol=" + bytesToHexNpe(pdol) : " no-PDOL"));
         if (!route.equalsIgnoreCase(getSchemeName())
                 && !("visa".equals(route) && "visa".equalsIgnoreCase(getSchemeName()))) {
             // Cross-scheme SELECT routed to the wrong service: still answer with our
@@ -170,16 +210,88 @@ public abstract class BaseHceEmulationService extends HostApduService {
         return maybeChain(selectAidResponse);
     }
 
+    /**
+     * Validate the READ RECORD target against the AFL advertised in GPO, collect
+     * CDOL1/CDOL2 from record data, then serve the static record fixture.
+     */
     private byte[] handleReadRecord(EmvCardEmulatorCore.ParsedApdu apdu) {
         int record = apdu.p1 & 0xFF;
         int sfi = (apdu.p2 & 0xFF) >> 3;
         String key = sfi + "/" + record;
-        log("[" + getSchemeName() + "] READ RECORD", "sfi=" + sfi + " rec=" + record);
+        String aflNote = describeAfl(sfi, record, sessionState);
+        log("[" + getSchemeName() + "] READ RECORD", "sfi=" + sfi + " rec=" + record + aflNote);
         byte[] record_data = readRecords.get(key);
         if (record_data == null) {
             return concat(new byte[0], SW_FILE_NOT_FOUND);
         }
+        collectCdols(record_data, sessionState);
         return maybeChain(record_data);
+    }
+
+    /** Compare GPO PDOL-values length against the SELECT PDOL contract. */
+    private String describePdol(byte[] gpoData, EmvCardEmulatorCore.SessionState state) {
+        byte[] values = gpoData;
+        if (values != null && values.length >= 2 && (values[0] & 0xFF) == 0x83) {
+            int len = values[1] & 0xFF;
+            int start = 2;
+            if (len > values.length - start) {
+                len = values.length - start;
+            }
+            byte[] copy = new byte[len];
+            System.arraycopy(values, start, copy, 0, len);
+            values = copy;
+        }
+        int got = values == null ? 0 : values.length;
+        if (state.activePdol == null) {
+            return " pdol=unknown(expected " + got + "B, no SELECT PDOL captured)";
+        }
+        int expected = EmvCardEmulatorCore.pdolValuesLength(state.activePdol);
+        if (expected == got) {
+            return " pdol=match(" + got + "B)";
+        }
+        return " pdol=MISMATCH expected=" + expected + "B got=" + got + "B";
+    }
+
+    /** Note whether the READ target falls inside an AFL-advertised range. */
+    private String describeAfl(int sfi, int record, EmvCardEmulatorCore.SessionState state) {
+        if (state.activeAfl == null) {
+            return " afl=unknown(no GPO yet)";
+        }
+        int[][] entries = EmvCardEmulatorCore.parseAfl(state.activeAfl);
+        for (int[] e : entries) {
+            if (e[0] == sfi && record >= e[1] && record <= e[2]) {
+                return " afl=listed(sfi=" + e[0] + " " + e[1] + "-" + e[2] + ")";
+            }
+        }
+        return " afl=NOT-LISTED(" + entries.length + " entries)";
+    }
+
+    /** Collect CDOL1/CDOL2 from record data for GENERATE AC logging. */
+    private static void collectCdols(byte[] recordData, EmvCardEmulatorCore.SessionState state) {
+        byte[] cdol1 = EmvCardEmulatorCore.findTlv(recordData, EmvCardEmulatorCore.TAG_CDOL1);
+        if (cdol1 != null) {
+            state.activeCdol1 = cdol1;
+        }
+        byte[] cdol2 = EmvCardEmulatorCore.findTlv(recordData, EmvCardEmulatorCore.TAG_CDOL2);
+        if (cdol2 != null) {
+            state.activeCdol2 = cdol2;
+        }
+    }
+
+    /** Compare GENERATE AC data length against the collected CDOL contract. */
+    private String describeCdol(byte[] acData, EmvCardEmulatorCore.SessionState state) {
+        byte[] cdol = sessionState.generateAcCount >= 2 && state.activeCdol2 != null
+                ? state.activeCdol2 : state.activeCdol1;
+        String which = sessionState.generateAcCount >= 2 ? "cdol2" : "cdol1";
+        int got = acData == null ? 0 : acData.length;
+        if (cdol == null) {
+            return " " + which + "=unknown(" + got + "B, none collected from records)";
+        }
+        int expected = EmvCardEmulatorCore.pdolValuesLength(cdol);
+        if (expected == got) {
+            return " " + which + "=match(" + got + "B)";
+        }
+        return " " + which + "=MISMATCH expected=" + expected + "B got=" + got + "B";
     }
 
     private byte[] handleGetData(EmvCardEmulatorCore.ParsedApdu apdu) {
