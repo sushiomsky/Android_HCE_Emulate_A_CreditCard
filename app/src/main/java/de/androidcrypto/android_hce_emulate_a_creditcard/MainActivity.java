@@ -18,10 +18,25 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
+
 public class MainActivity extends AppCompatActivity {
 
+    /**
+     * Research-use notice: this app replays EMVCo 3-D Secure test profiles for
+     * reader-compatibility lab testing. It holds no real cardholder data and
+     * cannot authorize a transaction.
+     */
+    public static final String RESEARCH_USE_NOTICE =
+            "Research fixture only - EMVCo test PANs, no real cardholder data, "
+                    + "replayed cryptograms cannot authorize transactions.";
+
+    /** Cap the on-screen log so long reader sessions cannot grow it without bound. */
+    private static final int MAX_LOG_LINES = 300;
+
     private TextView tvHceServiceLog;
-    private String hceServiceLog = "";
+    private final Deque<String> logLines = new ArrayDeque<String>();
 
     @SuppressLint("SourceLockedOrientationActivity")
     @Override
@@ -50,6 +65,7 @@ public class MainActivity extends AppCompatActivity {
             LocalBroadcastManager.getInstance(MainActivity.this).registerReceiver(
                     mMessageReceiver, new IntentFilter("HceCcEmulatorService"));
         }
+        appendMessageToLog("notice", RESEARCH_USE_NOTICE);
     }
 
     @Override
@@ -74,8 +90,15 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void appendMessageToLog(String message, String data) {
-        hceServiceLog += message + " | " + data + "\n";
-        tvHceServiceLog.setText(hceServiceLog);
+        logLines.addLast(message + " | " + data);
+        while (logLines.size() > MAX_LOG_LINES) {
+            logLines.removeFirst();
+        }
+        StringBuilder sb = new StringBuilder();
+        for (String line : logLines) {
+            sb.append(line).append("\n");
+        }
+        tvHceServiceLog.setText(sb.toString());
     }
 
     private void showAToast(Context context, String message) {

@@ -1,17 +1,21 @@
 <resources>
     <string name="app_name">Android_HCE_Emulate_A_CreditCard</string>
 
-    <string name="header_write">This app emulates a Credit Card</string>
-    <string name="description_write">The app needs to be called by the Select the PPSE (2PAY.SYS.DDF01) AID. The emulated Credit Card is of type Visa Card and has the AID A0000000031010</string>
+    <string name="header_write">This app emulates a test Credit Card (research fixture)</string>
+    <string name="description_write">The app answers Select PPSE (2PAY.SYS.DDF01) and the Visa (A0000000031010), Mastercard (A0000000041010), Amex (A000000025) and Discover (A000000152) AIDs. All card numbers are EMVCo 3-D Secure test profiles for reader-compatibility lab testing only - no real cardholder data, no authorizable transactions.</string>
 
     <string name="servicedesc">HCE Service CreditCard</string>
     <string name="aiddescription">HCE AID Description</string>
 
     <!-- select PPSE 2PAY.SYS.DDF01 -->
     <string name="hcePpse">325041592E5359532E4444463031</string>
-    <!-- visa credit or debit card -->
+    <!-- visa credit or debit card (test profile) -->
     <string name="aidVisaCard">A0000000031010</string>
-    <!-- mastercard credit or debit card -->
+    <!-- mastercard credit or debit card (test profile) -->
     <string name="aidMastercard">A0000000041010</string>
+    <!-- amex (test profile) -->
+    <string name="aidAmex">A000000025</string>
+    <!-- discover (test profile) -->
+    <string name="aidDiscover">A000000152</string>
     <string name="hce_service_log">HCE Service Log</string>
 </resources>
