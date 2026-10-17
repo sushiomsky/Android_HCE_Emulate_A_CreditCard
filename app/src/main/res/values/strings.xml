@@ -19,6 +19,9 @@
     <string name="import_card">Import card JSON</string>
     <string name="delete_card">Delete</string>
     <string name="share_log">Share log</string>
+    <string name="lab_title">Lab: oversized responses (Basic profile)</string>
+    <string name="lab_warning">Robustness-test your OWN reader only. Start at 256, raise stepwise; crashes mean the reader mishandles extended APDUs.</string>
+    <string name="lab_enable">Long response, bytes:</string>
     <string name="clear_log">Clear log</string>
     <string name="tap_pay_hint">After switching profile, re-select this app under Settings → NFC → Tap and Pay.</string>
 

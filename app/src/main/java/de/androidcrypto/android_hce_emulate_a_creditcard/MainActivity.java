@@ -13,6 +13,8 @@ import android.net.Uri;
 import android.nfc.NfcAdapter;
 import android.os.Bundle;
 import android.widget.Button;
+import android.widget.CheckBox;
+import android.widget.EditText;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.TextView;
@@ -71,6 +73,22 @@ public class MainActivity extends AppCompatActivity {
         Button btnShareLog = findViewById(R.id.btnShareLog);
         Button btnImportCard = findViewById(R.id.btnImportCard);
         Button btnDeleteCard = findViewById(R.id.btnDeleteCard);
+        CheckBox cbLabLongResponse = findViewById(R.id.cbLabLongResponse);
+        EditText etLabLen = findViewById(R.id.etLabLen);
+
+        SharedPreferences labPrefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        cbLabLongResponse.setChecked(labPrefs.getBoolean("lab_long_response", false));
+        int savedLen = labPrefs.getInt("lab_response_len", 512);
+        etLabLen.setText(String.valueOf(savedLen));
+        cbLabLongResponse.setOnCheckedChangeListener((v, checked) -> {
+            int len = parseLabLen(etLabLen.getText().toString(), 512);
+            labPrefs.edit().putBoolean("lab_long_response", checked)
+                    .putInt("lab_response_len", len).apply();
+            showAToast(this, checked
+                    ? "Lab long response ON: " + len + " bytes (Basic profile)"
+                    : "Lab long response OFF");
+            appendMessageToLog("lab long response", checked ? len + " bytes" : "off");
+        });
 
         /**
          * Note on this setting: Do NOT remove this setting or the app will fail when the screen goes
@@ -291,6 +309,16 @@ public class MainActivity extends AppCompatActivity {
 
     private void showAToast(Context context, String message) {
         Toast.makeText(context, message, Toast.LENGTH_SHORT).show();
+    }
+
+    private static int parseLabLen(String text, int fallback) {
+        try {
+            int len = Integer.parseInt(text.trim());
+            if (len < 0) return 0;
+            return Math.min(len, LabPayload.MAX_LEN);
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
     }
 
     private final BroadcastReceiver mMessageReceiver = new BroadcastReceiver() {
