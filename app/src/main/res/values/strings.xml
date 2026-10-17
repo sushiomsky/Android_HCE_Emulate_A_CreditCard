@@ -8,11 +8,17 @@
     <string name="servicedesc_visa">HCE Service Visa Card</string>
     <string name="servicedesc_mastercard">HCE Service Mastercard</string>
     <string name="servicedesc_basic">HCE Service Basic (9000 to all)</string>
+    <string name="servicedesc_imported">HCE Service Imported Card</string>
     <string name="aiddescription">HCE AID Description</string>
     <string name="profile_label">Emulated card profile</string>
     <string name="profile_visa">Visa (A0000000031010)</string>
     <string name="profile_mastercard">Mastercard (A0000000041010)</string>
     <string name="profile_basic">Basic responder (PPSE only, 9000)</string>
+    <string name="profile_imported">Imported card (JSON)</string>
+    <string name="imported_profile_label">Imported card file</string>
+    <string name="import_card">Import card JSON</string>
+    <string name="delete_card">Delete</string>
+    <string name="share_log">Share log</string>
     <string name="clear_log">Clear log</string>
     <string name="tap_pay_hint">After switching profile, re-select this app under Settings → NFC → Tap and Pay.</string>
 

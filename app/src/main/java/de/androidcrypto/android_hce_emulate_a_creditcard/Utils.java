@@ -96,4 +96,31 @@ public class Utils {
         return getTimestampMillis().replaceAll(":", "_").replaceAll(":", "_").replaceAll(" ", "_").replaceAll("\\.", "_");
     }
 
+    /**
+     * Increments the Application Transaction Counter (ATC, tag 9F36, 2 bytes big-endian)
+     * inside a hex-encoded EMV response. A real card raises the ATC on every Get
+     * Processing Options call; static replays always return the recorded value.
+     * Returns the input unchanged when no well-formed ATC is found; saturates at FFFF.
+     */
+    public static String incrementAtc(String responseHex) {
+        if (responseHex == null) return null;
+        String hex = responseHex.toLowerCase(java.util.Locale.US);
+        int idx = hex.indexOf("9f36");
+        while (idx >= 0 && idx + 8 <= hex.length()) {
+            String lenHex = hex.substring(idx + 4, idx + 6);
+            if ("02".equals(lenHex)) {
+                try {
+                    int atc = Integer.parseInt(hex.substring(idx + 6, idx + 10), 16);
+                    if (atc < 0xFFFF) atc++;
+                    String replacement = "9f3602" + String.format(java.util.Locale.US, "%04x", atc);
+                    return hex.substring(0, idx) + replacement + hex.substring(idx + 10);
+                } catch (NumberFormatException e) {
+                    return hex;
+                }
+            }
+            idx = hex.indexOf("9f36", idx + 1);
+        }
+        return hex;
+    }
+
 }

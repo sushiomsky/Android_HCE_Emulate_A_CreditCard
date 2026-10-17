@@ -77,7 +77,40 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="@string/profile_basic" />
+
+            <RadioButton
+                android:id="@+id/rbImported"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/profile_imported" />
         </RadioGroup>
+
+        <TextView
+            android:id="@+id/tvImportedProfile"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:textSize="14sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnImportCard"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/import_card" />
+
+            <Button
+                android:id="@+id/btnDeleteCard"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/delete_card" />
+        </LinearLayout>
 
         <TextView
             android:layout_width="match_parent"
@@ -92,6 +125,13 @@
             android:layout_height="wrap_content"
             android:layout_gravity="center"
             android:text="@string/clear_log" />
+
+        <Button
+            android:id="@+id/btnShareLog"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:text="@string/share_log" />
 
         <com.google.android.material.divider.MaterialDivider
             android:layout_width="match_parent"

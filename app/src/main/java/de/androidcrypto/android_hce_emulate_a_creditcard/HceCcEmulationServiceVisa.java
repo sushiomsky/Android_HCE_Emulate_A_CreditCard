@@ -3,6 +3,7 @@ package de.androidcrypto.android_hce_emulate_a_creditcard;
 import static de.androidcrypto.android_hce_emulate_a_creditcard.Utils.bytesToHexNpe;
 import static de.androidcrypto.android_hce_emulate_a_creditcard.Utils.concatenateByteArrays;
 import static de.androidcrypto.android_hce_emulate_a_creditcard.Utils.hexStringToByteArray;
+import static de.androidcrypto.android_hce_emulate_a_creditcard.Utils.incrementAtc;
 
 import android.content.Context;
 import android.content.Intent;
@@ -82,8 +83,10 @@ public class HceCcEmulationServiceVisa extends HostApduService {
             byte[] shortedCommandApdu = Arrays.copyOf(commandApdu, 2);
             if (Arrays.equals(shortedCommandApdu, GET_PROCESSING_OPTONS_COMMAND_SHORTED)) {
                 sendMessageToActivity("step 03 Get Processing Options (GPO) Command", bytesToHexNpe(commandApdu));
-                sendMessageToActivity("step 03 Get Processing Options (GPO) Response", bytesToHexNpe(GET_PROCESSING_OPTONS_RESPONSE));
-                return concatenateByteArrays(GET_PROCESSING_OPTONS_RESPONSE, RESPONSE_OK_SW);
+                // live ATC: a real card raises the counter on every GPO call
+                byte[] gpoResponse = hexStringToByteArray(incrementAtc(bytesToHexNpe(GET_PROCESSING_OPTONS_RESPONSE)));
+                sendMessageToActivity("step 03 Get Processing Options (GPO) Response", bytesToHexNpe(gpoResponse));
+                return concatenateByteArrays(gpoResponse, RESPONSE_OK_SW);
             }
         }
 

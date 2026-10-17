@@ -43,4 +43,21 @@ public class UtilsTest {
         assertFalse(Utils.arrayBeginsWith(gpo, null));
         assertFalse(Utils.arrayBeginsWith(new byte[0], prefix));
     }
+
+    @Test
+    public void incrementAtc_raisesCounter() {
+        assertEquals("9f360203a5", Utils.incrementAtc("9f360203a4"));
+        assertEquals("779f360200029f360203a4", Utils.incrementAtc("779f360200019f360203a4"));
+    }
+
+    @Test
+    public void incrementAtc_saturatesAtFfff() {
+        assertEquals("9f3602ffff", Utils.incrementAtc("9f3602ffff"));
+    }
+
+    @Test
+    public void incrementAtc_noAtc_returnsInput() {
+        assertEquals("6f2b84", Utils.incrementAtc("6f2b84"));
+        assertNull(Utils.incrementAtc(null));
+    }
 }
