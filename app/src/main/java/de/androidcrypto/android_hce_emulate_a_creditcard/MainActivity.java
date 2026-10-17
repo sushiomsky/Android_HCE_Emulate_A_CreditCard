@@ -109,6 +109,7 @@ public class MainActivity extends AppCompatActivity {
         Button btnClearLog = findViewById(R.id.btnClearLog);
         Button btnCopyLog = findViewById(R.id.btnCopyLog);
         Button btnShareLog = findViewById(R.id.btnShareLog);
+        Button btnShareTap = findViewById(R.id.btnShareTap);
         Button btnImportCard = findViewById(R.id.btnImportCard);
         Button btnDeleteCard = findViewById(R.id.btnDeleteCard);
         cbLabLongResponse = findViewById(R.id.cbLabLongResponse);
@@ -254,6 +255,24 @@ public class MainActivity extends AppCompatActivity {
             share.putExtra(Intent.EXTRA_SUBJECT, "HCE session log");
             share.putExtra(Intent.EXTRA_TEXT, getLogText());
             startActivity(Intent.createChooser(share, getString(R.string.share_log)));
+        });
+
+        btnShareTap.setOnClickListener(v -> {
+            String name = TapExport.lastExportName(this);
+            if (name == null) {
+                showAToast(this, "No tap exported yet — tap a reader first");
+                return;
+            }
+            String body = TapExport.readTap(this, name);
+            if (body.isEmpty()) {
+                showAToast(this, "Tap file unreadable: " + name);
+                return;
+            }
+            Intent share = new Intent(Intent.ACTION_SEND);
+            share.setType("text/plain");
+            share.putExtra(Intent.EXTRA_SUBJECT, "HCE tap export " + name);
+            share.putExtra(Intent.EXTRA_TEXT, body);
+            startActivity(Intent.createChooser(share, getString(R.string.share_tap)));
         });
 
         btnImportCard.setOnClickListener(v ->

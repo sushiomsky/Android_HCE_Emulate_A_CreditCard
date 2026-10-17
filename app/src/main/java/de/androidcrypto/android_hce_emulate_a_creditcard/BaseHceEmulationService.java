@@ -157,6 +157,13 @@ public abstract class BaseHceEmulationService extends HostApduService {
         if (apdu.lengthSuspicious) {
             log("[" + getSchemeName() + "] length warning", apdu.lengthNote);
         }
+        byte[] response = dispatch(apdu);
+        TapExport.record(commandApdu, response);
+        return response;
+    }
+
+    /** Pure dispatch (no logging/recording side effects beyond handler logs). */
+    private byte[] dispatch(EmvCardEmulatorCore.ParsedApdu apdu) {
 
         // GET RESPONSE chaining: deliver pending bytes from a previous 61xx.
         if (apdu.ins == INS_GET_RESPONSE) {
@@ -239,6 +246,8 @@ public abstract class BaseHceEmulationService extends HostApduService {
     private byte[] handleSelect(EmvCardEmulatorCore.ParsedApdu apdu) {
         String route = EmvCardEmulatorCore.routeSelect(apdu.data);
         if ("ppse".equals(route)) {
+            // New tap starts at SELECT PPSE: fresh export buffer for this tap.
+            TapExport.beginTap(getSchemeName());
             log("[" + getSchemeName() + "] SELECT PPSE", bytesToHexNpe(apdu.data));
             return maybeChain(selectPpseResponse);
         }
@@ -419,9 +428,12 @@ public abstract class BaseHceEmulationService extends HostApduService {
         // Session reset (improvement 3): ATC, last UN and chaining state restart each tap.
         sessionState.reset(getInitialAtc());
         String name = reason == 1 ? "DESELECTED" : reason == 0 ? "LINK_LOSS" : "unknown(" + reason + ")";
+        String tapFile = TapExport.exportTap(this);
         log("onDeactivated",
                 "reason=" + name + " session reset, atc="
-                        + String.format("%04X", sessionState.atc));
+                        + String.format("%04X", sessionState.atc)
+                        + (tapFile == null ? " (no exchanges recorded)"
+                                : " tap exported to " + tapFile));
     }
 
     private String apduLengthNote(EmvCardEmulatorCore.ParsedApdu apdu) {

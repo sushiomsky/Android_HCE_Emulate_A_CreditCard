@@ -337,6 +337,14 @@
                             android:text="@string/share_log"
                             style="@style/Widget.Material3.Button.TextButton" />
                     </LinearLayout>
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnShareTap"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="@string/share_tap"
+                        style="@style/Widget.Material3.Button.OutlinedButton" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 

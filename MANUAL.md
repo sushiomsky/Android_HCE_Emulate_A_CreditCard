@@ -207,7 +207,7 @@ bundled sample Visa means the Imported profile works out of the box. Import
 via the system file picker (JSON ≤ 1 MB, validated before storing); delete
 with confirmation. **Import rule: test captures only — never a real card.**
 
-### 3.5 Reader policy: strict vs lenient (`BaseHceEmulationService` + Lab card)
+### 3.4 Reader policy: strict vs lenient (`BaseHceEmulationService` + Lab card)
 
 Two checkboxes on the Lab card control how card-like the fixture behaves on
 every tap (read from SharedPreferences per C-APDU, defaults off = lenient lab
@@ -225,6 +225,19 @@ Use lenient mode for first contact with an unknown reader (maximum
 compatibility, mismatches visible in the log); flip strict mode on to verify
 the reader follows the contracts the fixture advertised.
 
+### 3.5 Tap export: pcap-style conversation files (`TapExport`)
+
+Every tap is recorded as raw C-APDU/R-APDU pairs: the buffer opens at SELECT
+PPSE and is written to `tap_<timestamp>.apdu` in internal storage on
+`onDeactivated` (the log line tells you the filename). One exchange per line —
+`C:<hex> R:<hex>` with SW included in R — `#` lines are comments
+(scheme, pair count). The **Share tap export (.apdu)** button under the log
+shares the most recent file as text; the format parses with a one-liner (skip
+`#`, split on the space, strip `C:`/`R:`), and `TapExport.parse` round-trips it
+(`TapExportTest`). Cap: 500 pairs per tap so a hostile reader can't grow
+storage. Use it to diff taps across policy settings, or to feed captures into
+the loopback harness as regression vectors.
+
 ### 3.6 Session log, file log, sharing (`MainActivity` + `FileLog`)
 
 Every tap event is broadcast from the services (`HceCcEmulatorService` intent)
@@ -235,7 +248,7 @@ history survives rotation and restarts. Copy puts the log on the clipboard,
 Share sends it as text, Clear resets the view. The log opens with the
 research-use notice and the session filename.
 
-### 3.5 Lab mode — robustness-test your own reader (`LabPayload`, `LabProbe`, Basic service)
+### 3.7 Lab mode — robustness-test your own reader (`LabPayload`, `LabProbe`, Basic service)
 
 Background (see `docs/research/README.md`): public research ("Contactless
 Overflow", IOActive 2023) showed NFC payment readers with stack buffer
@@ -260,7 +273,7 @@ responses a capped USB reader (e.g. ACR122U, 0xFF limit) cannot.
 Scope warning, repeated in-app: **your own hardware only.** A crash means the
 reader mishandles extended APDUs — report it to the vendor, don't weaponize it.
 
-### 3.6 TLV inspector (`TlvUtils`)
+### 3.8 TLV inspector (`TlvUtils`)
 
 A small BER-TLV reader (multi-byte tags, short/long-form lengths, recursion
 into constructed tags, never throws on malformed input) that appends compact
@@ -268,7 +281,7 @@ summaries to every logged response: `77[198]{82[2] 94[4] 57[19] …}`. It is the
 fastest learning loop in the app — compare the summary against the hex until
 TLV feels native.
 
-### 3.7 NFC status, profile UI, Material3 layout
+### 3.9 NFC status, profile UI, Material3 layout
 
 Status card (NFC missing / disabled / ready, checked on resume), profile radio
 group with per-profile AID captions, imported-file card (active file, APDU
@@ -363,10 +376,12 @@ Fixed along the way: Mastercard record keys now use wire SFI numbering
 
 Near term: done — on-device policy toggles (Strict AFL → `6A83`, Strict length →
 `6700`, Lab card checkboxes, read per-tap from SharedPreferences).
-Medium term: profile editor UI, pcap-style tap export. Done: parser fuzzing with
+Medium term: profile editor UI. Done: parser fuzzing with
 the LabProbe corpus both directions (`EmvParserFuzzTest`: deterministic seed,
-never-throws + truncation-flagging). Non-goals, permanently: real cryptogram
-computation, real PAN support, anything authorizable.
+never-throws + truncation-flagging); pcap-style tap export (`TapExport`:
+per-tap `C:/R:` conversation files + share button + `TapExportTest`).
+Non-goals, permanently: real cryptogram computation, real PAN support, anything
+authorizable.
 
 ## 9. License & sources
 
