@@ -67,6 +67,7 @@ public class MainActivity extends AppCompatActivity {
     private MaterialCardView cardImported;
     private CheckBox cbLabLongResponse;
     private CheckBox cbLabAutoSweep;
+    private CheckBox cbLabProbe;
     private EditText etLabLen;
     private final ArrayDeque<String> logLines = new ArrayDeque<>();
     private boolean suppressProfileCallback = false;
@@ -99,6 +100,7 @@ public class MainActivity extends AppCompatActivity {
         Button btnDeleteCard = findViewById(R.id.btnDeleteCard);
         cbLabLongResponse = findViewById(R.id.cbLabLongResponse);
         cbLabAutoSweep = findViewById(R.id.cbLabAutoSweep);
+        cbLabProbe = findViewById(R.id.cbLabProbe);
         etLabLen = findViewById(R.id.etLabLen);
 
         styleRadio(R.id.rbVisa, getString(R.string.profile_visa), getString(R.string.profile_visa_aid));
@@ -109,6 +111,7 @@ public class MainActivity extends AppCompatActivity {
         SharedPreferences labPrefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         cbLabLongResponse.setChecked(labPrefs.getBoolean("lab_long_response", false));
         cbLabAutoSweep.setChecked(labPrefs.getBoolean("lab_auto_sweep", false));
+        cbLabProbe.setChecked(labPrefs.getBoolean("lab_probe", false));
         int savedLen = labPrefs.getInt("lab_response_len", 512);
         etLabLen.setText(String.valueOf(savedLen));
         cbLabLongResponse.setOnCheckedChangeListener((v, checked) -> {
@@ -128,6 +131,16 @@ public class MainActivity extends AppCompatActivity {
                 appendMessageToLog("lab auto sweep", "on, 9 steps 256B..64KB");
             } else {
                 appendMessageToLog("lab auto sweep", "off");
+            }
+        });
+        cbLabProbe.setOnCheckedChangeListener((v, checked) -> {
+            labPrefs.edit().putBoolean("lab_probe", checked).apply();
+            if (checked) {
+                labPrefs.edit().putInt("lab_probe_index", 0).apply();
+                showAToast(this, "Probe mode ON: malformed case per tap");
+                appendMessageToLog("lab probes", "on, " + LabProbe.cases().size() + " cases");
+            } else {
+                appendMessageToLog("lab probes", "off");
             }
         });
 
@@ -388,6 +401,7 @@ public class MainActivity extends AppCompatActivity {
         cardImported.setAlpha(imported ? 1f : 0.5f);
         cbLabLongResponse.setEnabled(basic);
         cbLabAutoSweep.setEnabled(basic);
+        cbLabProbe.setEnabled(basic);
         etLabLen.setEnabled(basic);
     }
 

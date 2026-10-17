@@ -18,6 +18,9 @@ public class HceCcEmulationServiceBasic extends HostApduService {
 
     private static final byte[] RESPONSE_OK_SW = hexStringToByteArray("9000");
 
+    private long lastRespTime = 0;
+    private String lastStep = "";
+
     @Override
     public byte[] processCommandApdu(byte[] commandApdu, Bundle bundle) {
         String cmdHex = bytesToHexNpe(commandApdu);
@@ -33,6 +36,22 @@ public class HceCcEmulationServiceBasic extends HostApduService {
         // contactless reader (long/extended APDUs). Off by default.
         SharedPreferences prefs = getSharedPreferences("hce_cc_prefs", Context.MODE_PRIVATE);
         if (prefs.getBoolean("lab_long_response", false)) {
+            // Malformed-probe mode: each tap serves the next 0x82-length-confusion
+            // case (declared vs. actually sent lengths differ on purpose).
+            if (prefs.getBoolean("lab_probe", false)) {
+                java.util.List<LabProbe.Case> cases = LabProbe.cases();
+                int idx = prefs.getInt("lab_probe_index", 0);
+                LabProbe.Case probe = cases.get(idx % cases.size());
+                prefs.edit().putInt("lab_probe_index", idx + 1).apply();
+                lastStep = "probe " + (idx % cases.size() + 1) + "/" + cases.size()
+                        + " " + probe.name;
+                sendMessageToActivity("lab probe step", lastStep
+                        + " declared " + probe.declared + "B, sent " + probe.actual + "B");
+                sendMessageToActivity("lab response", "cmd " + cmdLen + "B -> "
+                        + probe.actual + " bytes + 9000");
+                lastRespTime = android.os.SystemClock.elapsedRealtime();
+                return concatenateByteArrays(probe.body, RESPONSE_OK_SW);
+            }
             int len = prefs.getInt("lab_response_len", 512);
             // Auto-sweep: each new tap session (starts with SELECT PPSE) steps to the
             // next length, so one tap series covers 256B..64KB without touching the phone.
@@ -48,7 +67,9 @@ public class HceCcEmulationServiceBasic extends HostApduService {
             byte[] pattern = hexStringToByteArray(prefs.getString("lab_pattern", "41"));
             if (pattern.length == 0) pattern = hexStringToByteArray("41");
             byte[] body = LabPayload.buildResponse(len, pattern);
+            lastStep = len + " bytes";
             sendMessageToActivity("lab response", "cmd " + cmdLen + "B -> " + len + " bytes + 9000");
+            lastRespTime = android.os.SystemClock.elapsedRealtime();
             return concatenateByteArrays(body, RESPONSE_OK_SW);
         }
 
@@ -64,6 +85,15 @@ public class HceCcEmulationServiceBasic extends HostApduService {
     public void onDeactivated(int reason) {
         String name = reason == 1 ? "DESELECTED" : reason == 0 ? "LINK_LOSS" : "unknown(" + reason + ")";
         sendMessageToActivity("onDeactivated with reason", name);
+        // reader dwell: how long the reader kept the field up after our last
+        // response. An instant drop right after a big/malformed step hints the
+        // reader choked instead of processing normally.
+        if (lastRespTime > 0) {
+            long dwell = android.os.SystemClock.elapsedRealtime() - lastRespTime;
+            sendMessageToActivity("reader dwell", dwell + "ms after " + lastStep);
+            lastRespTime = 0;
+            lastStep = "";
+        }
     }
 
     /**
