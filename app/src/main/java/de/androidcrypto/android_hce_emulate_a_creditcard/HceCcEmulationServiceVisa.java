@@ -86,6 +86,7 @@ public class HceCcEmulationServiceVisa extends HostApduService {
                 // live ATC: a real card raises the counter on every GPO call
                 byte[] gpoResponse = hexStringToByteArray(incrementAtc(bytesToHexNpe(GET_PROCESSING_OPTONS_RESPONSE)));
                 sendMessageToActivity("step 03 Get Processing Options (GPO) Response", bytesToHexNpe(gpoResponse));
+                sendMessageToActivity("step 03 GPO TLV", TlvUtils.summarize(bytesToHexNpe(gpoResponse)));
                 return concatenateByteArrays(gpoResponse, RESPONSE_OK_SW);
             }
         }

@@ -86,13 +86,14 @@ public class HceCcEmulationServiceMastercard extends HostApduService {
                 // live ATC: a real card raises the counter on every GPO call
                 byte[] gpoResponse = hexStringToByteArray(incrementAtc(bytesToHexNpe(GET_PROCESSING_OPTONS_RESPONSE)));
                 sendMessageToActivity("step 03 Get Processing Options (GPO) Response", bytesToHexNpe(gpoResponse));
+                sendMessageToActivity("step 03 GPO TLV", TlvUtils.summarize(bytesToHexNpe(gpoResponse)));
                 return concatenateByteArrays(gpoResponse, RESPONSE_OK_SW);
             }
         }
 
         // step 04
         if (Arrays.equals(commandApdu, READ_FILE_08_01_COMMAND)) {
-            // step 04 Read File 10/03 Command
+            // step 04 Read File 08/01 Command
             sendMessageToActivity("step 04 Read File 08/01 Command", bytesToHexNpe(commandApdu));
             sendMessageToActivity("step 04 Read File 08/01 Response", bytesToHexNpe(READ_FILE_08_01_RESPONSE));
             return concatenateByteArrays(READ_FILE_08_01_RESPONSE, RESPONSE_OK_SW);
@@ -119,7 +120,18 @@ public class HceCcEmulationServiceMastercard extends HostApduService {
             // step 07 Read File 10/06 Command
             sendMessageToActivity("step 08 Read File 20/02 Command", bytesToHexNpe(commandApdu));
             sendMessageToActivity("step 08 Read File 20/02 Response", bytesToHexNpe(READ_FILE_20_02_RESPONSE));
+            sendMessageToActivity("step 08 Read 20/02 TLV", TlvUtils.summarize(bytesToHexNpe(READ_FILE_20_02_RESPONSE)));
             return concatenateByteArrays(READ_FILE_20_02_RESPONSE, RESPONSE_OK_SW);
+        }
+
+        // MagStripe Compute Cryptographic Checksum (80 2A 8E 80, cf. Crash & Pay):
+        // this replay is M/Chip-only, so decline explicitly instead of a blank 9000.
+        if (commandApdu != null && commandApdu.length >= 4
+                && commandApdu[0] == (byte) 0x80 && commandApdu[1] == (byte) 0x2A
+                && commandApdu[2] == (byte) 0x8E && commandApdu[3] == (byte) 0x80) {
+            sendMessageToActivity("Compute Cryptographic Checksum (MSD)", bytesToHexNpe(commandApdu));
+            sendMessageToActivity("MSD not emulated", "M/Chip replay only -> 6985");
+            return hexStringToByteArray("6985");
         }
 
         // in any other case response an 'OK'

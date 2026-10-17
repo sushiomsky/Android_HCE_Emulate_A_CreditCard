@@ -58,6 +58,7 @@ public class HceCcEmulationServiceImported extends HostApduService {
         }
         sendMessageToActivity("profile [" + profile.getLabel() + "] cmd", cmdHex);
         sendMessageToActivity("profile [" + profile.getLabel() + "] resp", responseHex);
+        sendMessageToActivity("profile [" + profile.getLabel() + "] TLV", TlvUtils.summarize(responseHex));
         return concatenateByteArrays(hexStringToByteArray(responseHex), RESPONSE_OK_SW);
     }
 
