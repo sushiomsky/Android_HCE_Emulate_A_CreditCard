@@ -207,7 +207,25 @@ bundled sample Visa means the Imported profile works out of the box. Import
 via the system file picker (JSON ≤ 1 MB, validated before storing); delete
 with confirmation. **Import rule: test captures only — never a real card.**
 
-### 3.4 Session log, file log, sharing (`MainActivity` + `FileLog`)
+### 3.5 Reader policy: strict vs lenient (`BaseHceEmulationService` + Lab card)
+
+Two checkboxes on the Lab card control how card-like the fixture behaves on
+every tap (read from SharedPreferences per C-APDU, defaults off = lenient lab
+mode):
+
+- **Strict AFL** (`strict_afl`): out-of-AFL READ RECORDs are declined `6A83`
+  like a real card. Lenient mode serves them from the fixture and flags
+  `afl=NOT-LISTED` in the log — friendlier for readers that probe extra records.
+- **Strict length** (`strict_length`): GPO/GENERATE AC whose values length
+  differs from the captured PDOL/CDOL contract is declined `6700`. Lenient mode
+  serves the template and logs `pdol=MISMATCH` / `cdol1=MISMATCH` with expected
+  vs actual byte counts.
+
+Use lenient mode for first contact with an unknown reader (maximum
+compatibility, mismatches visible in the log); flip strict mode on to verify
+the reader follows the contracts the fixture advertised.
+
+### 3.6 Session log, file log, sharing (`MainActivity` + `FileLog`)
 
 Every tap event is broadcast from the services (`HceCcEmulatorService` intent)
 and rendered with a short timestamp, capped at 300 lines (a deque drops the
@@ -343,8 +361,8 @@ Fixed along the way: Mastercard record keys now use wire SFI numbering
 (P2≫3) matching the GPO AFL; the Mastercard GPO template advertises the real
 3-entry AFL from the sample reader log.
 
-Near term: PDOL-length mismatch handling (decline vs. best-effort echo policy —
-`STRICT` policy exists at the service layer, needs an on-device policy toggle),
+Near term: done — on-device policy toggles (Strict AFL → `6A83`, Strict length →
+`6700`, Lab card checkboxes, read per-tap from SharedPreferences).
 Medium term: profile editor UI, pcap-style tap export. Done: parser fuzzing with
 the LabProbe corpus both directions (`EmvParserFuzzTest`: deterministic seed,
 never-throws + truncation-flagging). Non-goals, permanently: real cryptogram

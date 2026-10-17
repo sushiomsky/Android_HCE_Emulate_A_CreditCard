@@ -79,6 +79,8 @@ public class MainActivity extends AppCompatActivity {
     private CheckBox cbLabLongResponse;
     private CheckBox cbLabAutoSweep;
     private CheckBox cbLabProbe;
+    private CheckBox cbStrictAfl;
+    private CheckBox cbStrictLength;
     private EditText etLabLen;
     private final ArrayDeque<String> logLines = new ArrayDeque<>();
     private boolean suppressProfileCallback = false;
@@ -112,6 +114,8 @@ public class MainActivity extends AppCompatActivity {
         cbLabLongResponse = findViewById(R.id.cbLabLongResponse);
         cbLabAutoSweep = findViewById(R.id.cbLabAutoSweep);
         cbLabProbe = findViewById(R.id.cbLabProbe);
+        cbStrictAfl = findViewById(R.id.cbStrictAfl);
+        cbStrictLength = findViewById(R.id.cbStrictLength);
         etLabLen = findViewById(R.id.etLabLen);
 
         styleRadio(R.id.rbVisa, getString(R.string.profile_visa), getString(R.string.profile_visa_aid));
@@ -155,6 +159,23 @@ public class MainActivity extends AppCompatActivity {
             } else {
                 appendMessageToLog("lab probes", "off");
             }
+        });
+        // Reader-policy toggles: read by BaseHceEmulationService on every tap.
+        cbStrictAfl.setChecked(labPrefs.getBoolean(BaseHceEmulationService.PREF_STRICT_AFL, false));
+        cbStrictLength.setChecked(labPrefs.getBoolean(BaseHceEmulationService.PREF_STRICT_LENGTH, false));
+        cbStrictAfl.setOnCheckedChangeListener((v, checked) -> {
+            labPrefs.edit().putBoolean(BaseHceEmulationService.PREF_STRICT_AFL, checked).apply();
+            showAToast(this, checked
+                    ? "Strict AFL ON: out-of-AFL READs declined 6A83"
+                    : "Strict AFL OFF: lenient, mismatches only logged");
+            appendMessageToLog("strict AFL", checked ? "on (6A83)" : "off (lenient)");
+        });
+        cbStrictLength.setOnCheckedChangeListener((v, checked) -> {
+            labPrefs.edit().putBoolean(BaseHceEmulationService.PREF_STRICT_LENGTH, checked).apply();
+            showAToast(this, checked
+                    ? "Strict length ON: PDOL/CDOL mismatch declined 6700"
+                    : "Strict length OFF: lenient, mismatches only logged");
+            appendMessageToLog("strict length", checked ? "on (6700)" : "off (lenient)");
         });
 
         /**

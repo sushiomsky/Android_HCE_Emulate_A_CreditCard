@@ -46,6 +46,8 @@
     <string name="lab_applies_basic">Applies only while the Basic profile is active.</string>
     <string name="lab_auto_sweep">Auto sweep: step 256B → 64KB on each tap</string>
     <string name="lab_probe">Malformed probes: 0x82 length confusion per tap</string>
+    <string name="policy_strict_afl">Strict AFL: decline out-of-AFL READs (6A83)</string>
+    <string name="policy_strict_length">Strict length: decline PDOL/CDOL mismatch (6700)</string>
     <string name="clear_log">Clear</string>
     <string name="tap_pay_hint">After switching profile, re-select this app under Settings → NFC → Tap and Pay.</string>
 

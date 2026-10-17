@@ -64,10 +64,28 @@ public abstract class BaseHceEmulationService extends HostApduService {
      */
     public enum LengthPolicy { LENIENT, STRICT }
 
+    /** Preference keys (shared with MainActivity toggles) for on-device policy. */
+    public static final String PREFS_NAME = "hce_cc_prefs";
+    public static final String PREF_STRICT_AFL = "strict_afl";
+    public static final String PREF_STRICT_LENGTH = "strict_length";
+
     protected LengthPolicy lengthPolicy = LengthPolicy.LENIENT;
 
     /** Strict AFL mode (see handleReadRecord javadoc). Subclasses may flip this. */
     protected boolean strictAflEnforcement = false;
+
+    /** Refresh both policy flags from SharedPreferences (called once per tap). */
+    private void refreshPolicyFromPrefs() {
+        try {
+            android.content.SharedPreferences prefs =
+                    getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+            strictAflEnforcement = prefs.getBoolean(PREF_STRICT_AFL, false);
+            lengthPolicy = prefs.getBoolean(PREF_STRICT_LENGTH, false)
+                    ? LengthPolicy.STRICT : LengthPolicy.LENIENT;
+        } catch (Exception ignored) {
+            // Unit-test / headless contexts: keep constructor defaults.
+        }
+    }
 
     /** Upper bound for the first chunk before 61xx chaining kicks in. */
     protected int maxFirstChunk = 255;
@@ -132,6 +150,7 @@ public abstract class BaseHceEmulationService extends HostApduService {
     @Override
     public byte[] processCommandApdu(byte[] commandApdu, Bundle bundle) {
         ensureProfile();
+        refreshPolicyFromPrefs();
         EmvCardEmulatorCore.ParsedApdu apdu = EmvCardEmulatorCore.parse(commandApdu);
         log("[" + getSchemeName() + "] C-APDU", bytesToHexNpe(commandApdu)
                 + apduLengthNote(apdu));
