@@ -27,6 +27,11 @@
             </intent-filter>
         </activity>
 
+        <!-- On-device JSON profile editor (Imported card). Not exported. -->
+        <activity
+            android:name=".ProfileEditorActivity"
+            android:exported="false" />
+
         <!-- One HCE service per card profile; MainActivity enables exactly one at a
              time via PackageManager so Android routes the tap to the selected profile. -->
         <service

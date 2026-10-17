@@ -32,6 +32,7 @@
     <string name="imported_none">No active file • %1$d stored</string>
     <string name="import_card">Import JSON</string>
     <string name="delete_card">Delete active</string>
+    <string name="edit_profile">Edit pairs (label/AID/APDUs)</string>
     <string name="delete_confirm_title">Delete imported card?</string>
     <string name="delete_confirm_message">Delete %1$s from internal storage?</string>
     <string name="share_log">Share</string>

@@ -196,7 +196,7 @@ under Settings → NFC → Tap and Pay** (Android caches the default).
 - **Imported card**: data-driven service answering from a JSON profile
   (§3.3) with live ATC on GPO and honest `6A82` for unmapped commands.
 
-### 3.3 JSON card import (`EmvCardProfile` + `CardProfileStore`)
+### 3.3 JSON card import + on-device editor (`EmvCardProfile` + `CardProfileStore`)
 
 A profile is `{"label", "aid", "entries": [{"command", "response",
 "prefixMatch"}]}` — an ordered C-APDU→R-APDU map. Exact match wins first;
@@ -205,7 +205,15 @@ transaction) match by prefix. Files live in app-internal storage (no
 permissions), the active file is remembered in `SharedPreferences`, and a
 bundled sample Visa means the Imported profile works out of the box. Import
 via the system file picker (JSON ≤ 1 MB, validated before storing); delete
-with confirmation. **Import rule: test captures only — never a real card.**
+with confirmation. The **Edit pairs** button opens the on-device editor
+(`ProfileEditorActivity`): entry list with add/edit/delete dialogs plus a
+label/AID dialog, validated by `EmvCardProfile.validateEntry/validateAid`
+(even-length hex, 4-byte command minimum with an `80a8` GPO-prefix exception,
+no trailing `9000` in responses — the service appends SW at tap time, storing
+it would double-append — AID 5-16 bytes). Saves go through
+`CardProfileStore.save`, and the Imported service re-reads the file on every
+tap, so edits are live on the next tap. **Import rule: test captures only —
+never a real card.**
 
 ### 3.4 Reader policy: strict vs lenient (`BaseHceEmulationService` + Lab card)
 
@@ -376,7 +384,9 @@ Fixed along the way: Mastercard record keys now use wire SFI numbering
 
 Near term: done — on-device policy toggles (Strict AFL → `6A83`, Strict length →
 `6700`, Lab card checkboxes, read per-tap from SharedPreferences).
-Medium term: profile editor UI. Done: parser fuzzing with
+Medium term: done — profile editor UI (`ProfileEditorActivity`: on-device
+label/AID/APDU-pair editing with `validateEntry`/`validateAid` rules, live on
+next tap). Done: parser fuzzing with
 the LabProbe corpus both directions (`EmvParserFuzzTest`: deterministic seed,
 never-throws + truncation-flagging); pcap-style tap export (`TapExport`:
 per-tap `C:/R:` conversation files + share button + `TapExportTest`).

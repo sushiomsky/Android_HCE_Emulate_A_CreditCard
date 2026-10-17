@@ -112,6 +112,7 @@ public class MainActivity extends AppCompatActivity {
         Button btnShareTap = findViewById(R.id.btnShareTap);
         Button btnImportCard = findViewById(R.id.btnImportCard);
         Button btnDeleteCard = findViewById(R.id.btnDeleteCard);
+        Button btnEditProfile = findViewById(R.id.btnEditProfile);
         cbLabLongResponse = findViewById(R.id.cbLabLongResponse);
         cbLabAutoSweep = findViewById(R.id.cbLabAutoSweep);
         cbLabProbe = findViewById(R.id.cbLabProbe);
@@ -277,6 +278,14 @@ public class MainActivity extends AppCompatActivity {
 
         btnImportCard.setOnClickListener(v ->
                 importLauncher.launch(new String[]{"application/json", "text/plain", "*/*"}));
+
+        btnEditProfile.setOnClickListener(v -> {
+            if (!ProfileEditorActivity.hasEditableProfile(this)) {
+                showAToast(this, "No imported profile yet — import a JSON first");
+                return;
+            }
+            startActivity(new Intent(this, ProfileEditorActivity.class));
+        });
 
         btnDeleteCard.setOnClickListener(v -> {
             String active = CardProfileStore.getActiveFileName(this);
