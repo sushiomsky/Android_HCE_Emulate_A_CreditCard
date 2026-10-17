@@ -239,8 +239,9 @@ public abstract class BaseHceEmulationService extends HostApduService {
     public void onDeactivated(int reason) {
         // Session reset (improvement 3): ATC, last UN and chaining state restart each tap.
         sessionState.reset(getInitialAtc());
-        log("[" + getSchemeName() + "] onDeactivated",
-                "reason=" + reason + " session reset, atc="
+        String name = reason == 1 ? "DESELECTED" : reason == 0 ? "LINK_LOSS" : "unknown(" + reason + ")";
+        log("onDeactivated",
+                "reason=" + name + " session reset, atc="
                         + String.format("%04X", sessionState.atc));
     }
 
@@ -261,10 +262,19 @@ public abstract class BaseHceEmulationService extends HostApduService {
     }
 
     private void log(String msg, String data) {
+        String prefix = "[" + getSchemeName() + "] ";
+        String tlvSummary = "";
+        if (msg.endsWith("Response") || msg.contains("GPO dynamic") || msg.contains("GENERATE AC")) {
+            try {
+                tlvSummary = " | " + TlvUtils.summarize(data);
+            } catch (Exception ignored) {
+            }
+        }
         Intent intent = new Intent("HceCcEmulatorService");
-        intent.putExtra("Message", msg);
-        intent.putExtra("Data", data);
+        intent.putExtra("Message", prefix + msg);
+        intent.putExtra("Data", data + tlvSummary);
         Context context = this;
         LocalBroadcastManager.getInstance(context).sendBroadcast(intent);
+        FileLog.append(context, prefix + msg, data + tlvSummary);
     }
 }

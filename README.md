@@ -1,8 +1,15 @@
 # Android HCE Emulate a Credit Card (EMV card)
 
-This app will explain how to run an emulation of a Credit Card ("EMV card", CC) using the **Host Based 
-Card Emulation (HCE)** feature on Android devices. It is showing the basics on how to get called 
-by a Credit Card Terminal (NFC Reader), process the incoming messages from the terminal and respond 
+> **Research fixture only.** This app replays **EMVCo 3-D Secure test PANs**
+> (Visa `4111111111111111`, Mastercard `5555555555554444`,
+> Amex `378282246310005`, Discover `6011111111111117`) for
+> reader-compatibility lab testing. No real cardholder data, no authorizable
+> transactions. **Full manual: [`MANUAL.md`](MANUAL.md)** — what it is, how EMV
+> works, every feature, code tour, real-world scenarios, troubleshooting, roadmap.
+
+This app will explain how to run an emulation of a Credit Card ("EMV card", CC) using the **Host Based
+Card Emulation (HCE)** feature on Android devices. It is showing the basics on how to get called
+by a Credit Card Terminal (NFC Reader), process the incoming messages from the terminal and respond
 accordingly to the terminal.
 
 The complete process is a kind of "Question & Answer" game - the terminal requests some data, the
