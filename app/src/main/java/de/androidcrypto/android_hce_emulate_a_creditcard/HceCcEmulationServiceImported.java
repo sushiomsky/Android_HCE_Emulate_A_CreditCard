@@ -73,5 +73,6 @@ public class HceCcEmulationServiceImported extends HostApduService {
         intent.putExtra("Data", data);
         Context context = this;
         LocalBroadcastManager.getInstance(context).sendBroadcast(intent);
+        FileLog.append(context, "[imported] " + msg, data);
     }
 }

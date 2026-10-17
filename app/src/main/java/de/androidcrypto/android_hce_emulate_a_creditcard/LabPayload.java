@@ -17,6 +17,9 @@ public final class LabPayload {
     /** Hard cap for a response body (max extended-APDU length). */
     public static final int MAX_LEN = 0xFFFF;
 
+    /** Lengths (response body bytes) stepped through on successive taps in auto-sweep mode. */
+    public static final int[] SWEEP_LENGTHS = {256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65535};
+
     private LabPayload() {
     }
 

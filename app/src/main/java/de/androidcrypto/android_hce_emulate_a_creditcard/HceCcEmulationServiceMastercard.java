@@ -145,6 +145,7 @@ public class HceCcEmulationServiceMastercard extends HostApduService {
         intent.putExtra("Data", data);
         Context context = this;
         LocalBroadcastManager.getInstance(context).sendBroadcast(intent);
+        FileLog.append(context, "[mastercard] " + msg, data);
     }
 
 }

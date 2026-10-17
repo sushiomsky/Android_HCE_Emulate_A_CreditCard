@@ -1,7 +1,11 @@
 package de.androidcrypto.android_hce_emulate_a_creditcard;
 
+import static de.androidcrypto.android_hce_emulate_a_creditcard.Utils.getTimestampShort;
+
 import android.annotation.SuppressLint;
 import android.content.BroadcastReceiver;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -12,11 +16,15 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.nfc.NfcAdapter;
 import android.os.Bundle;
+import android.text.SpannableStringBuilder;
+import android.text.Spanned;
+import android.text.style.RelativeSizeSpan;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -29,8 +37,12 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
+import com.google.android.material.card.MaterialCardView;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayDeque;
 import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
@@ -44,11 +56,19 @@ public class MainActivity extends AppCompatActivity {
     private static final String PROFILE_BASIC = "basic";
     private static final String PROFILE_IMPORTED = "imported";
 
+    private static final int MAX_LOG_LINES = 300;
+
     private TextView tvHceServiceLog;
     private TextView tvNfcStatus;
+    private TextView tvActiveProfile;
     private TextView tvImportedProfile;
     private RadioGroup rgProfile;
-    private String hceServiceLog = "";
+    private ScrollView scrollMain;
+    private MaterialCardView cardImported;
+    private CheckBox cbLabLongResponse;
+    private CheckBox cbLabAutoSweep;
+    private EditText etLabLen;
+    private final ArrayDeque<String> logLines = new ArrayDeque<>();
     private boolean suppressProfileCallback = false;
 
     private final ActivityResultLauncher<String[]> importLauncher =
@@ -67,17 +87,28 @@ public class MainActivity extends AppCompatActivity {
         });
         tvHceServiceLog = findViewById(R.id.tvHceServiceLog);
         tvNfcStatus = findViewById(R.id.tvNfcStatus);
+        tvActiveProfile = findViewById(R.id.tvActiveProfile);
         tvImportedProfile = findViewById(R.id.tvImportedProfile);
         rgProfile = findViewById(R.id.rgProfile);
+        scrollMain = findViewById(R.id.scrollMain);
+        cardImported = findViewById(R.id.cardImported);
         Button btnClearLog = findViewById(R.id.btnClearLog);
+        Button btnCopyLog = findViewById(R.id.btnCopyLog);
         Button btnShareLog = findViewById(R.id.btnShareLog);
         Button btnImportCard = findViewById(R.id.btnImportCard);
         Button btnDeleteCard = findViewById(R.id.btnDeleteCard);
-        CheckBox cbLabLongResponse = findViewById(R.id.cbLabLongResponse);
-        EditText etLabLen = findViewById(R.id.etLabLen);
+        cbLabLongResponse = findViewById(R.id.cbLabLongResponse);
+        cbLabAutoSweep = findViewById(R.id.cbLabAutoSweep);
+        etLabLen = findViewById(R.id.etLabLen);
+
+        styleRadio(R.id.rbVisa, getString(R.string.profile_visa), getString(R.string.profile_visa_aid));
+        styleRadio(R.id.rbMastercard, getString(R.string.profile_mastercard), getString(R.string.profile_mastercard_aid));
+        styleRadio(R.id.rbBasic, getString(R.string.profile_basic), getString(R.string.profile_basic_aid));
+        styleRadio(R.id.rbImported, getString(R.string.profile_imported), getString(R.string.profile_imported_aid));
 
         SharedPreferences labPrefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         cbLabLongResponse.setChecked(labPrefs.getBoolean("lab_long_response", false));
+        cbLabAutoSweep.setChecked(labPrefs.getBoolean("lab_auto_sweep", false));
         int savedLen = labPrefs.getInt("lab_response_len", 512);
         etLabLen.setText(String.valueOf(savedLen));
         cbLabLongResponse.setOnCheckedChangeListener((v, checked) -> {
@@ -88,6 +119,16 @@ public class MainActivity extends AppCompatActivity {
                     ? "Lab long response ON: " + len + " bytes (Basic profile)"
                     : "Lab long response OFF");
             appendMessageToLog("lab long response", checked ? len + " bytes" : "off");
+        });
+        cbLabAutoSweep.setOnCheckedChangeListener((v, checked) -> {
+            labPrefs.edit().putBoolean("lab_auto_sweep", checked).apply();
+            if (checked) {
+                labPrefs.edit().putInt("lab_sweep_index", 0).apply();
+                showAToast(this, "Auto sweep ON: lengths step up on each tap");
+                appendMessageToLog("lab auto sweep", "on, 9 steps 256B..64KB");
+            } else {
+                appendMessageToLog("lab auto sweep", "off");
+            }
         });
 
         /**
@@ -104,6 +145,9 @@ public class MainActivity extends AppCompatActivity {
         CardProfileStore.ensureSampleAsset(this, SAMPLE_ASSET);
         updateImportedLabel();
 
+        String session = FileLog.newSession(this);
+        appendMessageToLog("session file", session);
+
         // HCE services send via LocalBroadcastManager, so receive the same way on all API levels.
         // (A previous version used Context.registerReceiver on API 33+, which never receives
         // LocalBroadcastManager broadcasts, leaving the log empty on modern phones.)
@@ -112,6 +156,8 @@ public class MainActivity extends AppCompatActivity {
 
         String activeProfile = getActiveProfile();
         checkProfileRadio(activeProfile);
+        refreshProfileDependentUi(activeProfile);
+        updateActiveProfileLabel(activeProfile);
 
         rgProfile.setOnCheckedChangeListener((group, checkedId) -> {
             if (suppressProfileCallback) return;
@@ -138,16 +184,23 @@ public class MainActivity extends AppCompatActivity {
         });
 
         btnClearLog.setOnClickListener(v -> {
-            hceServiceLog = "";
-            tvHceServiceLog.setText(getString(R.string.hce_service_log));
+            logLines.clear();
+            tvHceServiceLog.setText(getString(R.string.log_empty));
+        });
+
+        btnCopyLog.setOnClickListener(v -> {
+            ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+            if (cm != null) {
+                cm.setPrimaryClip(ClipData.newPlainText("HCE session log", getLogText()));
+                showAToast(this, "Log copied (" + logLines.size() + " lines)");
+            }
         });
 
         btnShareLog.setOnClickListener(v -> {
             Intent share = new Intent(Intent.ACTION_SEND);
             share.setType("text/plain");
             share.putExtra(Intent.EXTRA_SUBJECT, "HCE session log");
-            share.putExtra(Intent.EXTRA_TEXT, hceServiceLog.isEmpty()
-                    ? getString(R.string.hce_service_log) : hceServiceLog);
+            share.putExtra(Intent.EXTRA_TEXT, getLogText());
             startActivity(Intent.createChooser(share, getString(R.string.share_log)));
         });
 
@@ -160,13 +213,20 @@ public class MainActivity extends AppCompatActivity {
                 showAToast(this, "No imported card to delete");
                 return;
             }
-            CardProfileStore.delete(this, active);
-            updateImportedLabel();
-            showAToast(this, "Deleted " + active);
-            if (PROFILE_IMPORTED.equals(getActiveProfile())) {
-                applyProfile(PROFILE_VISA);
-                checkProfileRadio(PROFILE_VISA);
-            }
+            new MaterialAlertDialogBuilder(this)
+                    .setTitle(R.string.delete_confirm_title)
+                    .setMessage(getString(R.string.delete_confirm_message, active))
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .setPositiveButton(R.string.delete_card, (d, w) -> {
+                        CardProfileStore.delete(this, active);
+                        updateImportedLabel();
+                        showAToast(this, "Deleted " + active);
+                        if (PROFILE_IMPORTED.equals(getActiveProfile())) {
+                            applyProfile(PROFILE_VISA);
+                            checkProfileRadio(PROFILE_VISA);
+                        }
+                    })
+                    .show();
         });
     }
 
@@ -205,15 +265,13 @@ public class MainActivity extends AppCompatActivity {
         if (active != null) {
             try {
                 EmvCardProfile p = CardProfileStore.load(this, active);
-                tvImportedProfile.setText(getString(R.string.imported_profile_label)
-                        + ": [" + p.getLabel() + "] " + active
-                        + " (" + p.getEntries().size() + " APDUs)");
+                tvImportedProfile.setText(getString(R.string.imported_active,
+                        p.getLabel(), active, p.getEntries().size()));
                 return;
             } catch (Exception ignored) {
             }
         }
-        tvImportedProfile.setText(getString(R.string.imported_profile_label)
-                + ": none (" + files.size() + " stored)");
+        tvImportedProfile.setText(getString(R.string.imported_none, files.size()));
     }
 
     @Override
@@ -293,6 +351,8 @@ public class MainActivity extends AppCompatActivity {
         getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY_PROFILE, profile).apply();
         showAToast(this, "Profile: " + profile + " - re-check Tap and Pay default");
         appendMessageToLog("profile switched", profile);
+        refreshProfileDependentUi(profile);
+        updateActiveProfileLabel(profile);
     }
 
     private void setServiceEnabled(PackageManager pm, Class<?> serviceClass, boolean enabled) {
@@ -303,8 +363,42 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void appendMessageToLog(String message, String data) {
-        hceServiceLog += message + " | " + data + "\n";
-        tvHceServiceLog.setText(hceServiceLog);
+        logLines.addLast(getTimestampShort() + " | " + message + " | " + data);
+        while (logLines.size() > MAX_LOG_LINES) logLines.removeFirst();
+        tvHceServiceLog.setText(getLogText());
+        scrollMain.post(() -> scrollMain.fullScroll(ScrollView.FOCUS_DOWN));
+    }
+
+    private String getLogText() {
+        if (logLines.isEmpty()) return getString(R.string.log_empty);
+        StringBuilder sb = new StringBuilder();
+        for (String line : logLines) sb.append(line).append('\n');
+        return sb.toString();
+    }
+
+    private void updateActiveProfileLabel(String profile) {
+        tvActiveProfile.setText(getString(R.string.active_profile, profile));
+    }
+
+    /** Import card only makes sense for the Imported profile; lab only for Basic. */
+    private void refreshProfileDependentUi(String profile) {
+        boolean imported = PROFILE_IMPORTED.equals(profile);
+        boolean basic = PROFILE_BASIC.equals(profile);
+        cardImported.setEnabled(imported);
+        cardImported.setAlpha(imported ? 1f : 0.5f);
+        cbLabLongResponse.setEnabled(basic);
+        cbLabAutoSweep.setEnabled(basic);
+        etLabLen.setEnabled(basic);
+    }
+
+    /** Two-line radio label: name + smaller AID caption. */
+    private void styleRadio(int id, String name, String caption) {
+        RadioButton rb = findViewById(id);
+        if (rb == null) return;
+        SpannableStringBuilder sb = new SpannableStringBuilder(name + "\n" + caption);
+        sb.setSpan(new RelativeSizeSpan(0.8f), name.length() + 1, sb.length(),
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        rb.setText(sb);
     }
 
     private void showAToast(Context context, String message) {

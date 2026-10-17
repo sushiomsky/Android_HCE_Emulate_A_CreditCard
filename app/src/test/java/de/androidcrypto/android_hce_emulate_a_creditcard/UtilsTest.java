@@ -60,4 +60,17 @@ public class UtilsTest {
         assertEquals("6f2b84", Utils.incrementAtc("6f2b84"));
         assertNull(Utils.incrementAtc(null));
     }
+
+    @Test
+    public void getTimestampShort_hasMillisShape() {
+        String ts = Utils.getTimestampShort();
+        assertTrue(ts.matches("\\d{2}:\\d{2}:\\d{2}\\.\\d{3}"));
+    }
+
+    @Test
+    public void sweepLengths_coverRange() {
+        assertEquals(9, LabPayload.SWEEP_LENGTHS.length);
+        assertEquals(256, LabPayload.SWEEP_LENGTHS[0]);
+        assertEquals(65535, LabPayload.SWEEP_LENGTHS[LabPayload.SWEEP_LENGTHS.length - 1]);
+    }
 }

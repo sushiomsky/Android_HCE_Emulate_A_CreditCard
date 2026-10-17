@@ -96,6 +96,15 @@ public class Utils {
         return getTimestampMillis().replaceAll(":", "_").replaceAll(":", "_").replaceAll(" ", "_").replaceAll("\\.", "_");
     }
 
+    /** Short timestamp for log lines: HH:mm:ss.SSS */
+    public static String getTimestampShort() {
+        String full = getTimestampMillis();
+        int space = full.indexOf(' ');
+        String time = space >= 0 ? full.substring(space + 1) : full;
+        // legacy branch formats millis after a colon ("HH:mm:ss:SSS") - normalize to a dot
+        return time.replaceFirst("(\\d{2}:\\d{2}:\\d{2}):(\\d{3})$", "$1.$2");
+    }
+
     /**
      * Increments the Application Transaction Counter (ATC, tag 9F36, 2 bytes big-endian)
      * inside a hex-encoded EMV response. A real card raises the ATC on every Get
