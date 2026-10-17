@@ -93,6 +93,18 @@
                             android:text="@string/profile_mastercard" />
 
                         <RadioButton
+                            android:id="@+id/rbAmex"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/profile_amex" />
+
+                        <RadioButton
+                            android:id="@+id/rbDiscover"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/profile_discover" />
+
+                        <RadioButton
                             android:id="@+id/rbBasic"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
@@ -166,6 +178,13 @@
                             android:textColor="?attr/colorError"
                             style="@style/Widget.Material3.Button.OutlinedButton" />
                     </LinearLayout>
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnEditProfile"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/edit_profile" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
@@ -246,6 +265,20 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
                         android:text="@string/lab_probe" />
+
+                    <com.google.android.material.checkbox.MaterialCheckBox
+                        android:id="@+id/cbStrictAfl"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="@string/policy_strict_afl" />
+
+                    <com.google.android.material.checkbox.MaterialCheckBox
+                        android:id="@+id/cbStrictLength"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="@string/policy_strict_length" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
@@ -311,6 +344,14 @@
                             android:text="@string/share_log"
                             style="@style/Widget.Material3.Button.TextButton" />
                     </LinearLayout>
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnShareTap"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="@string/share_tap"
+                        style="@style/Widget.Material3.Button.OutlinedButton" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 

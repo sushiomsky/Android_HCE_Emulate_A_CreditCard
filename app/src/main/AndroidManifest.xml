@@ -27,6 +27,13 @@
             </intent-filter>
         </activity>
 
+        <!-- On-device JSON profile editor (Imported card). Not exported. -->
+        <activity
+            android:name=".ProfileEditorActivity"
+            android:exported="false" />
+
+        <!-- One HCE service per card profile; MainActivity enables exactly one at a
+             time via PackageManager so Android routes the tap to the selected profile. -->
         <service
             android:name=".HceCcEmulationServiceVisa"
             android:exported="true"
@@ -55,6 +62,36 @@
             <meta-data
                 android:name="android.nfc.cardemulation.host_apdu_service"
                 android:resource="@xml/apduservice_mastercard" />
+        </service>
+
+        <service
+            android:name=".HceCcEmulationServiceAmex"
+            android:exported="true"
+            android:enabled="false"
+            android:permission="android.permission.BIND_NFC_SERVICE">
+            <intent-filter>
+                <action android:name="android.nfc.cardemulation.action.HOST_APDU_SERVICE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.nfc.cardemulation.host_apdu_service"
+                android:resource="@xml/apduservice_amex" />
+        </service>
+
+        <service
+            android:name=".HceCcEmulationServiceDiscover"
+            android:exported="true"
+            android:enabled="false"
+            android:permission="android.permission.BIND_NFC_SERVICE">
+            <intent-filter>
+                <action android:name="android.nfc.cardemulation.action.HOST_APDU_SERVICE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.nfc.cardemulation.host_apdu_service"
+                android:resource="@xml/apduservice_discover" />
         </service>
 
         <service

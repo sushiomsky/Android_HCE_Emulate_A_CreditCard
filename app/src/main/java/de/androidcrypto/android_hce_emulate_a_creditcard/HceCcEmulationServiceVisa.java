@@ -1,152 +1,46 @@
 package de.androidcrypto.android_hce_emulate_a_creditcard;
 
-import static de.androidcrypto.android_hce_emulate_a_creditcard.Utils.bytesToHexNpe;
-import static de.androidcrypto.android_hce_emulate_a_creditcard.Utils.concatenateByteArrays;
+import static de.androidcrypto.android_hce_emulate_a_creditcard.EmvCardEmulatorCore.hexBytes;
 import static de.androidcrypto.android_hce_emulate_a_creditcard.Utils.hexStringToByteArray;
-import static de.androidcrypto.android_hce_emulate_a_creditcard.Utils.incrementAtc;
 
-import android.content.Context;
-import android.content.Intent;
-import android.nfc.cardemulation.HostApduService;
-import android.os.Bundle;
-
-import androidx.localbroadcastmanager.content.LocalBroadcastManager;
-
-import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
- * This service class uses a static approach to serve the data (command and response data) of a
- * sample Visa Card. 
- * 
- * The provided data are from an outdated Visa Card that is no longer in use and the card is 
- * blocked by the bank. The data was recorded with the app "Talk to your Credit Card" 
- * available here: https://github.com/AndroidCrypto/TalkToYourCreditCardG8
- * 
- * Please make sure that the AID A0000000031010 is included in the apduservice.xml file or the 
- * service will not called by Android, the card will not get selected and the workflow stops.
- * 
+ * Research / interoperability fixture: emulates a Visa credit card carrying the
+ * EMVCo 3-D Secure test PAN 4111111111111111. No real cardholder data is present;
+ * recorded cryptograms are replayed for reader-compatibility lab testing only.
  */
-
-public class HceCcEmulationServiceVisa extends HostApduService {
-
-    // this is a static approach to serve the byte arrays to the service
-
-    private static final byte[] RESPONSE_OK_SW = hexStringToByteArray("9000");
-    // Note: the responses does not include the 0x9000h terminator
-    private static final byte[] SELECT_PPSE_COMMAND = hexStringToByteArray("00a404000e325041592e5359532e444446303100");
-    private static final byte[] SELECT_PPSE_RESPONSE = hexStringToByteArray("6f2b840e325041592e5359532e4444463031a519bf0c1661144f07a00000000310109f0a080001050100000000");
-
-    private static final byte[] SELECT_AID_COMMAND = hexStringToByteArray("00a4040007a000000003101000");
-    private static final byte[] SELECT_AID_RESPONSE = hexStringToByteArray("6f5d8407a0000000031010a5525010564953412044454249542020202020208701029f38189f66049f02069f03069f1a0295055f2a029a039c019f37045f2d02656ebf0c1a9f5a0531082608269f0a080001050100000000bf6304df200180");
-
-    // this needs to be dynamic as the response from the real NFC reader is not predictable (e.g. different amounts)
-    private static final byte[] GET_PROCESSING_OPTONS_COMMAND_SHORTED = hexStringToByteArray("80a8");
-    // private static final byte[] GET_PROCESSING_OPTONS_COMMAND_READER = hexStringToByteArray("80a8000023832127000000000000001000000000000000097800000000000978230301003839303100");
-    private static final byte[] GET_PROCESSING_OPTONS_RESPONSE = hexStringToByteArray("7781c68202200094041003060057134921828094896752d25022013650000000000f9f100706040a03a020009f26089ffe5b7ee37376179f2701809f360203aa9f4b81804703a7be03f1e3dfed25d08fed5739de0d7ba5062b95eeab5aba503e447502d25bfc7d3ea6959b6e9fb9fed7e32f0382654ea3ad32b29728128f5e6fcd31ed2eb7859e9db84a9ca84e5366afac92792bff27adddf55816727e61740b1ae03ab89e3e5cf475099512896a9936f24b1cca97aacb975c4aa2fc827519d69d1d93be9f6c021600");
-
-    private static final byte[] READ_FILE_10_03_COMMAND = hexStringToByteArray("00b2031400");
-    private static final byte[] READ_FILE_10_03_RESPONSE = hexStringToByteArray("7081fb9081f830f056de40a950bec2a870c59d5462222605a8f31cdef39a0537c7c175115e352ad0c55470fce5737c4e769897623e01401da73e01644bb0b491aa1aadb27fc360c0089f7c2e52a64e96a3f8a59f76e49aa6dd9a6792644f2b0b513b1a1a93b98a3cc19f0bec45e9f8edd70f893a8cafb21b62f3b8f15983775f14fd16cb36a19120e5a5068ef9f05ffaea4e714d80f134a298d167a65a92f6f57963db94ab5d3967f6675b3609a0fceb5fbb70f07cfdeab1352c6a34d6be737aa74848f3f56932f08b51f54aa3040f1ace4a0ced38684df900a395c5cd88562eb2af8d35601210c20d6c3425dcd813b9b358d1356d52a8ebd8fb5a19915d");
-
-    private static final byte[] READ_FILE_10_04_COMMAND = hexStringToByteArray("00b2041400");
-    private static final byte[] READ_FILE_10_04_RESPONSE = hexStringToByteArray("70078f01099f320103");
-
-    private static final byte[] READ_FILE_10_05_COMMAND = hexStringToByteArray("00b2051400");
-    private static final byte[] READ_FILE_10_05_RESPONSE = hexStringToByteArray("7081b49f4681b047461ffca14b5dfdc209569c8a14f17644251aa3f4abea251262134b920982f0250741f96fccb40800293054c0d89824ba7ac44ee7bab06fa157fccf7e52d3c64b4d8acd41b9774b801519ed6fec827ec2ec29f8991167c453776559a4a06fd98c4b9bd1548a65af2f56002a836bdf9a040a9253e653584c92833c3d1aa8e08c4de9cda1026044f80f39a9326a57496598987a6b3e18a5f56a8bdede752870e8793776db9d325ccd9c7ca5db33c28f04");
-
-    private static final byte[] READ_FILE_10_06_COMMAND = hexStringToByteArray("00b2061400");
-    private static final byte[] READ_FILE_10_06_RESPONSE = hexStringToByteArray("702e9f4701035a0849218280948967525f3401005f24032502285f280208269f6e04207000009f690701c1b626881600");
+public class HceCcEmulationServiceVisa extends BaseHceEmulationService {
 
     @Override
-    public byte[] processCommandApdu(byte[] commandApdu, Bundle bundle) {
-        sendMessageToActivity("------------------------", "----");
-        sendMessageToActivity("# Visa Card #", bytesToHexNpe(commandApdu));
-
-        // step 01
-        if (Arrays.equals(commandApdu, SELECT_PPSE_COMMAND)) {
-            // step 01 selecting the PPSE
-            sendMessageToActivity("step 01 Select PPSE Command ", bytesToHexNpe(commandApdu));
-            sendMessageToActivity("step 01 Select PPSE Response", bytesToHexNpe(SELECT_PPSE_RESPONSE));
-            return concatenateByteArrays(SELECT_PPSE_RESPONSE, RESPONSE_OK_SW);
-        }
-
-        // step 02
-        if (Arrays.equals(commandApdu, SELECT_AID_COMMAND)) {
-            // step 02 selecting the AID
-            sendMessageToActivity("step 02 Select AID Command ", bytesToHexNpe(commandApdu));
-            sendMessageToActivity("step 02 Select AID Response", bytesToHexNpe(SELECT_AID_RESPONSE));
-            return concatenateByteArrays(SELECT_AID_RESPONSE, RESPONSE_OK_SW);
-        }
-
-        // step 03
-        // dynamic - just compare the beginning of the commandApdu with the sample
-        if (commandApdu != null && commandApdu.length >= 2) {
-            byte[] shortedCommandApdu = Arrays.copyOf(commandApdu, 2);
-            if (Arrays.equals(shortedCommandApdu, GET_PROCESSING_OPTONS_COMMAND_SHORTED)) {
-                sendMessageToActivity("step 03 Get Processing Options (GPO) Command", bytesToHexNpe(commandApdu));
-                // live ATC: a real card raises the counter on every GPO call
-                byte[] gpoResponse = hexStringToByteArray(incrementAtc(bytesToHexNpe(GET_PROCESSING_OPTONS_RESPONSE)));
-                sendMessageToActivity("step 03 Get Processing Options (GPO) Response", bytesToHexNpe(gpoResponse));
-                sendMessageToActivity("step 03 GPO TLV", TlvUtils.summarize(bytesToHexNpe(gpoResponse)));
-                return concatenateByteArrays(gpoResponse, RESPONSE_OK_SW);
-            }
-        }
-
-        // step 04
-        if (Arrays.equals(commandApdu, READ_FILE_10_03_COMMAND)) {
-            // step 04 Read File 10/03 Command
-            sendMessageToActivity("step 04 Read File 10/03 Command", bytesToHexNpe(commandApdu));
-            sendMessageToActivity("step 04 Read File 10/03 Response", bytesToHexNpe(READ_FILE_10_03_RESPONSE));
-            return concatenateByteArrays(READ_FILE_10_03_RESPONSE, RESPONSE_OK_SW);
-        }
-
-        // step 05
-        if (Arrays.equals(commandApdu, READ_FILE_10_04_COMMAND)) {
-            // step 05 Read File 10/04 Command
-            sendMessageToActivity("step 05 Read File 10/04 Command", bytesToHexNpe(commandApdu));
-            sendMessageToActivity("step 05 Read File 10/05 Response", bytesToHexNpe(READ_FILE_10_04_RESPONSE));
-            return concatenateByteArrays(READ_FILE_10_04_RESPONSE, RESPONSE_OK_SW);
-        }
-
-        // step 06
-        if (Arrays.equals(commandApdu, READ_FILE_10_05_COMMAND)) {
-            // step 06 Read File 10/05 Command
-            sendMessageToActivity("step 06 Read File 10/05 Command", bytesToHexNpe(commandApdu));
-            sendMessageToActivity("step 06 Read File 10/05 Response", bytesToHexNpe(READ_FILE_10_05_RESPONSE));
-            return concatenateByteArrays(READ_FILE_10_05_RESPONSE, RESPONSE_OK_SW);
-        }
-
-        // step 07
-        if (Arrays.equals(commandApdu, READ_FILE_10_06_COMMAND)) {
-            // step 07 Read File 10/06 Command
-            sendMessageToActivity("step 08 Read File 10/06 Command", bytesToHexNpe(commandApdu));
-            sendMessageToActivity("step 08 Read File 10/06 Response", bytesToHexNpe(READ_FILE_10_06_RESPONSE));
-            return concatenateByteArrays(READ_FILE_10_06_RESPONSE, RESPONSE_OK_SW);
-        }
-
-        // in any other case response an 'OK'
-        return RESPONSE_OK_SW;
+    protected String getSchemeName() {
+        return "visa";
     }
 
     @Override
-    public void onDeactivated(int reason) {
-        sendMessageToActivity("------------------------", "----");
-        sendMessageToActivity("onDeactivated with reason", String.valueOf(reason));
+    protected int getInitialAtc() {
+        return 0x03AA; // recorded ATC of the fixture trace
     }
 
-    /**
-     * A utility method to send data with an Broadcast Intent from this service to the MainActivity class
-     *
-     * @param msg
-     * @param data
-     */
-    private void sendMessageToActivity(String msg, String data) {
-        Intent intent = new Intent("HceCcEmulatorService");
-        // You can also include some extra data.
-        intent.putExtra("Message", msg);
-        intent.putExtra("Data", data);
-        Context context = this;
-        LocalBroadcastManager.getInstance(context).sendBroadcast(intent);
-        FileLog.append(context, "[visa] " + msg, data);
+    @Override
+    protected void initProfile() {
+        Map<String, byte[]> records = new HashMap<String, byte[]>();
+        records.put("10/3", hexStringToByteArray("7081FB9081F830F056DE40A950BEC2A870C59D5462222605A8F31CDEF39A0537C7C175115E352AD0C55470FCE5737C4E769897623E01401DA73E01644BB0B491AA1AADB27FC360C0089F7C2E52A64E96A3F8A59F76E49AA6DD9A6792644F2B0B513B1A1A93B98A3CC19F0BEC45E9F8EDD70F893A8CAFB21B62F3B8F15983775F14FD16CB36A19120E5A5068EF9F05FFAEA4E714D80F134A298D167A65A92F6F57963DB94AB5D3967F6675B3609A0FCEB5FBB70F07CFDEAB1352C6A34D6BE737AA74848F3F56932F08B51F54AA3040F1ACE4A0CED38684DF900A395C5CD88562EB2AF8D35601210C20D6C3425DCD813B9B358D1356D52A8EBD8FB5A19915D"));
+        records.put("10/4", hexStringToByteArray("70078F01099F320103"));
+        records.put("10/5", hexStringToByteArray("7081B49F4681B047461FFCA14B5DFDC209569C8A14F17644251AA3F4ABEA251262134B920982F0250741F96FCCB40800293054C0D89824BA7AC44EE7BAB06FA157FCCF7E52D3C64B4D8ACD41B9774B801519ED6FEC827EC2EC29F8991167C453776559A4A06FD98C4B9BD1548A65AF2F56002A836BDF9A040A9253E653584C92833C3D1AA8E08C4DE9CDA1026044F80F39A9326A57496598987A6B3E18A5F56A8BDEDE752870E8793776DB9D325CCD9C7CA5DB33C28F04"));
+        records.put("10/6", hexStringToByteArray("702E9F4701035A0841111111111111115F3401005F24032502285F280208269F6E04207000009F690701C1B626881600"));
+        Map<String, byte[]> dataObjects = new HashMap<String, byte[]>();
+        dataObjects.put("9F13", hexBytes("00000000000000000000000000000000")); // last online ATC placeholder
+        dataObjects.put("9F17", hexBytes("00000000")); // PIN try counter placeholder
+        // 77-template GPO fixture (tag 9F26/9F36 are patched dynamically per tap).
+        // Track-2 equivalent carries EMVCo test PAN 4111111111111111.
+        setProfile(
+                hexStringToByteArray("6F2B840E325041592E5359532E4444463031A519BF0C1661144F07A00000000310109F0A080001050100000000"),
+                hexStringToByteArray("6F5D8407A0000000031010A5525010564953412044454249542020202020208701029F38189F66049F02069F03069F1A0295055F2A029A039C019F37045F2D02656EBF0C1A9F5A0531082608269F0A080001050100000000BF6304DF200180"),
+                hexStringToByteArray("7781C68202200094041003060057134111111111111111D25022013650000000000F9F100706040A03A020009F26089FFE5B7EE37376179F2701809F360203AA9F4B81804703A7BE03F1E3DFED25D08FED5739DE0D7BA5062B95EEAB5ABA503E447502D25BFC7D3EA6959B6E9FB9FED7E32F0382654EA3AD32B29728128F5E6FCD31ED2EB7859E9DB84A9CA84E5366AFAC92792BFF27ADDDF55816727E61740B1AE03AB89E3E5CF475099512896A9936F24B1CCA97AACB975C4AA2FC827519D69D1D93BE9F6C021600"),
+                records,
+                hexStringToByteArray("771282021980940C080101001001010120010200"),
+                dataObjects);
     }
-
 }

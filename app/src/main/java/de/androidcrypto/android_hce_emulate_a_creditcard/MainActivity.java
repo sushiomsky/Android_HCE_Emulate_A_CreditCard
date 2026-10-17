@@ -53,10 +53,21 @@ public class MainActivity extends AppCompatActivity {
 
     private static final String PROFILE_VISA = "visa";
     private static final String PROFILE_MASTERCARD = "mastercard";
+    private static final String PROFILE_AMEX = "amex";
+    private static final String PROFILE_DISCOVER = "discover";
     private static final String PROFILE_BASIC = "basic";
     private static final String PROFILE_IMPORTED = "imported";
 
     private static final int MAX_LOG_LINES = 300;
+
+    /**
+     * Research-use notice: this app replays EMVCo 3-D Secure test profiles for
+     * reader-compatibility lab testing. It holds no real cardholder data and
+     * cannot authorize a transaction.
+     */
+    public static final String RESEARCH_USE_NOTICE =
+            "Research fixture only - EMVCo test PANs, no real cardholder data, "
+                    + "replayed cryptograms cannot authorize transactions.";
 
     private TextView tvHceServiceLog;
     private TextView tvNfcStatus;
@@ -68,6 +79,8 @@ public class MainActivity extends AppCompatActivity {
     private CheckBox cbLabLongResponse;
     private CheckBox cbLabAutoSweep;
     private CheckBox cbLabProbe;
+    private CheckBox cbStrictAfl;
+    private CheckBox cbStrictLength;
     private EditText etLabLen;
     private final ArrayDeque<String> logLines = new ArrayDeque<>();
     private boolean suppressProfileCallback = false;
@@ -96,15 +109,21 @@ public class MainActivity extends AppCompatActivity {
         Button btnClearLog = findViewById(R.id.btnClearLog);
         Button btnCopyLog = findViewById(R.id.btnCopyLog);
         Button btnShareLog = findViewById(R.id.btnShareLog);
+        Button btnShareTap = findViewById(R.id.btnShareTap);
         Button btnImportCard = findViewById(R.id.btnImportCard);
         Button btnDeleteCard = findViewById(R.id.btnDeleteCard);
+        Button btnEditProfile = findViewById(R.id.btnEditProfile);
         cbLabLongResponse = findViewById(R.id.cbLabLongResponse);
         cbLabAutoSweep = findViewById(R.id.cbLabAutoSweep);
         cbLabProbe = findViewById(R.id.cbLabProbe);
+        cbStrictAfl = findViewById(R.id.cbStrictAfl);
+        cbStrictLength = findViewById(R.id.cbStrictLength);
         etLabLen = findViewById(R.id.etLabLen);
 
         styleRadio(R.id.rbVisa, getString(R.string.profile_visa), getString(R.string.profile_visa_aid));
         styleRadio(R.id.rbMastercard, getString(R.string.profile_mastercard), getString(R.string.profile_mastercard_aid));
+        styleRadio(R.id.rbAmex, getString(R.string.profile_amex), getString(R.string.profile_amex_aid));
+        styleRadio(R.id.rbDiscover, getString(R.string.profile_discover), getString(R.string.profile_discover_aid));
         styleRadio(R.id.rbBasic, getString(R.string.profile_basic), getString(R.string.profile_basic_aid));
         styleRadio(R.id.rbImported, getString(R.string.profile_imported), getString(R.string.profile_imported_aid));
 
@@ -143,6 +162,23 @@ public class MainActivity extends AppCompatActivity {
                 appendMessageToLog("lab probes", "off");
             }
         });
+        // Reader-policy toggles: read by BaseHceEmulationService on every tap.
+        cbStrictAfl.setChecked(labPrefs.getBoolean(BaseHceEmulationService.PREF_STRICT_AFL, false));
+        cbStrictLength.setChecked(labPrefs.getBoolean(BaseHceEmulationService.PREF_STRICT_LENGTH, false));
+        cbStrictAfl.setOnCheckedChangeListener((v, checked) -> {
+            labPrefs.edit().putBoolean(BaseHceEmulationService.PREF_STRICT_AFL, checked).apply();
+            showAToast(this, checked
+                    ? "Strict AFL ON: out-of-AFL READs declined 6A83"
+                    : "Strict AFL OFF: lenient, mismatches only logged");
+            appendMessageToLog("strict AFL", checked ? "on (6A83)" : "off (lenient)");
+        });
+        cbStrictLength.setOnCheckedChangeListener((v, checked) -> {
+            labPrefs.edit().putBoolean(BaseHceEmulationService.PREF_STRICT_LENGTH, checked).apply();
+            showAToast(this, checked
+                    ? "Strict length ON: PDOL/CDOL mismatch declined 6700"
+                    : "Strict length OFF: lenient, mismatches only logged");
+            appendMessageToLog("strict length", checked ? "on (6700)" : "off (lenient)");
+        });
 
         /**
          * Note on this setting: Do NOT remove this setting or the app will fail when the screen goes
@@ -160,6 +196,7 @@ public class MainActivity extends AppCompatActivity {
 
         String session = FileLog.newSession(this);
         appendMessageToLog("session file", session);
+        appendMessageToLog("notice", RESEARCH_USE_NOTICE);
 
         // HCE services send via LocalBroadcastManager, so receive the same way on all API levels.
         // (A previous version used Context.registerReceiver on API 33+, which never receives
@@ -178,6 +215,10 @@ public class MainActivity extends AppCompatActivity {
                 applyProfile(PROFILE_VISA);
             } else if (checkedId == R.id.rbMastercard) {
                 applyProfile(PROFILE_MASTERCARD);
+            } else if (checkedId == R.id.rbAmex) {
+                applyProfile(PROFILE_AMEX);
+            } else if (checkedId == R.id.rbDiscover) {
+                applyProfile(PROFILE_DISCOVER);
             } else if (checkedId == R.id.rbBasic) {
                 applyProfile(PROFILE_BASIC);
             } else if (checkedId == R.id.rbImported) {
@@ -217,8 +258,34 @@ public class MainActivity extends AppCompatActivity {
             startActivity(Intent.createChooser(share, getString(R.string.share_log)));
         });
 
+        btnShareTap.setOnClickListener(v -> {
+            String name = TapExport.lastExportName(this);
+            if (name == null) {
+                showAToast(this, "No tap exported yet — tap a reader first");
+                return;
+            }
+            String body = TapExport.readTap(this, name);
+            if (body.isEmpty()) {
+                showAToast(this, "Tap file unreadable: " + name);
+                return;
+            }
+            Intent share = new Intent(Intent.ACTION_SEND);
+            share.setType("text/plain");
+            share.putExtra(Intent.EXTRA_SUBJECT, "HCE tap export " + name);
+            share.putExtra(Intent.EXTRA_TEXT, body);
+            startActivity(Intent.createChooser(share, getString(R.string.share_tap)));
+        });
+
         btnImportCard.setOnClickListener(v ->
                 importLauncher.launch(new String[]{"application/json", "text/plain", "*/*"}));
+
+        btnEditProfile.setOnClickListener(v -> {
+            if (!ProfileEditorActivity.hasEditableProfile(this)) {
+                showAToast(this, "No imported profile yet — import a JSON first");
+                return;
+            }
+            startActivity(new Intent(this, ProfileEditorActivity.class));
+        });
 
         btnDeleteCard.setOnClickListener(v -> {
             String active = CardProfileStore.getActiveFileName(this);
@@ -328,6 +395,8 @@ public class MainActivity extends AppCompatActivity {
         PackageManager pm = getPackageManager();
         if (isServiceEnabled(pm, HceCcEmulationServiceImported.class)) return PROFILE_IMPORTED;
         if (isServiceEnabled(pm, HceCcEmulationServiceMastercard.class)) return PROFILE_MASTERCARD;
+        if (isServiceEnabled(pm, HceCcEmulationServiceAmex.class)) return PROFILE_AMEX;
+        if (isServiceEnabled(pm, HceCcEmulationServiceDiscover.class)) return PROFILE_DISCOVER;
         if (isServiceEnabled(pm, HceCcEmulationServiceBasic.class)) return PROFILE_BASIC;
         return PROFILE_VISA;
     }
@@ -348,6 +417,8 @@ public class MainActivity extends AppCompatActivity {
         suppressProfileCallback = true;
         int id = R.id.rbVisa;
         if (PROFILE_MASTERCARD.equals(profile)) id = R.id.rbMastercard;
+        else if (PROFILE_AMEX.equals(profile)) id = R.id.rbAmex;
+        else if (PROFILE_DISCOVER.equals(profile)) id = R.id.rbDiscover;
         else if (PROFILE_BASIC.equals(profile)) id = R.id.rbBasic;
         else if (PROFILE_IMPORTED.equals(profile)) id = R.id.rbImported;
         RadioButton rb = findViewById(id);
@@ -359,6 +430,8 @@ public class MainActivity extends AppCompatActivity {
         PackageManager pm = getPackageManager();
         setServiceEnabled(pm, HceCcEmulationServiceVisa.class, PROFILE_VISA.equals(profile));
         setServiceEnabled(pm, HceCcEmulationServiceMastercard.class, PROFILE_MASTERCARD.equals(profile));
+        setServiceEnabled(pm, HceCcEmulationServiceAmex.class, PROFILE_AMEX.equals(profile));
+        setServiceEnabled(pm, HceCcEmulationServiceDiscover.class, PROFILE_DISCOVER.equals(profile));
         setServiceEnabled(pm, HceCcEmulationServiceBasic.class, PROFILE_BASIC.equals(profile));
         setServiceEnabled(pm, HceCcEmulationServiceImported.class, PROFILE_IMPORTED.equals(profile));
         getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY_PROFILE, profile).apply();

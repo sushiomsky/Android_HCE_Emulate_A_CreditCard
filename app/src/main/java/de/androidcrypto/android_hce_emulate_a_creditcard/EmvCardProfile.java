@@ -51,8 +51,16 @@ public class EmvCardProfile {
         return label != null ? label : "";
     }
 
+    public void setLabel(String label) {
+        this.label = label;
+    }
+
     public String getAid() {
         return aid != null ? aid.toLowerCase(Locale.US) : "";
+    }
+
+    public void setAid(String aid) {
+        this.aid = aid;
     }
 
     public List<ApduEntry> getEntries() {
@@ -69,6 +77,44 @@ public class EmvCardProfile {
         for (ApduEntry e : getEntries()) {
             if (e.isPrefixMatch() && cmd.startsWith(e.normalizedCommand())) return e.getResponse();
         }
+        return null;
+    }
+
+    /**
+     * Validates one APDU pair the way the profile editor does (same rules,
+     * pure-Java so unit tests can pin them). Returns null when valid, otherwise
+     * a short human-readable reason. Responses must be SW-less bodies — the
+     * Imported service appends {@code 9000} at tap time, so a trailing SW here
+     * would double-append.
+     */
+    public static String validateEntry(String commandHex, String responseHex) {
+        if (commandHex == null || responseHex == null) return "empty command/response";
+        String c = commandHex.trim();
+        String r = responseHex.trim();
+        if (c.isEmpty() || r.isEmpty()) return "empty command/response";
+        if (c.length() % 2 != 0) return "command hex must have an even length";
+        if (r.length() % 2 != 0) return "response hex must have an even length";
+        if (!c.matches("[0-9a-fA-F]+")) return "command is not hex";
+        if (!r.matches("[0-9a-fA-F]+")) return "response is not hex";
+        // short prefixes are allowed: GPO uses prefix match (PDOL changes each tap)
+        boolean isGpoPrefix = c.equalsIgnoreCase("80a8");
+        if (c.length() < 8 && !isGpoPrefix) return "command shorter than a 4-byte APDU header";
+        if (r.toLowerCase(Locale.US).endsWith("9000")) {
+            return "response must not end with 9000 (SW is appended at tap time)";
+        }
+        return null;
+    }
+
+    /**
+     * Validates an AID hex string (5-16 bytes per ISO 7816-5). Null when valid,
+     * otherwise a short reason.
+     */
+    public static String validateAid(String aidHex) {
+        if (aidHex == null || aidHex.trim().isEmpty()) return "empty AID";
+        String a = aidHex.trim();
+        if (a.length() % 2 != 0) return "AID hex must have an even length";
+        if (!a.matches("[0-9a-fA-F]+")) return "AID is not hex";
+        if (a.length() < 10 || a.length() > 32) return "AID must be 5-16 bytes";
         return null;
     }
 
@@ -99,6 +145,18 @@ public class EmvCardProfile {
         public ApduEntry(String command, String response, boolean prefixMatch) {
             this.command = command;
             this.response = response;
+            this.prefixMatch = prefixMatch;
+        }
+
+        public void setCommand(String command) {
+            this.command = command;
+        }
+
+        public void setResponse(String response) {
+            this.response = response;
+        }
+
+        public void setPrefixMatch(boolean prefixMatch) {
             this.prefixMatch = prefixMatch;
         }
 
