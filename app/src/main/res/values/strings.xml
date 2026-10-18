@@ -1,17 +1,73 @@
 <resources>
     <string name="app_name">Android_HCE_Emulate_A_CreditCard</string>
+    <string name="app_name_short">HCE Credit Card</string>
 
     <string name="header_write">This app emulates a Credit Card</string>
     <string name="description_write">The app needs to be called by the Select the PPSE (2PAY.SYS.DDF01) AID. The emulated Credit Card is of type Visa Card and has the AID A0000000031010</string>
 
     <string name="servicedesc">HCE Service CreditCard</string>
+    <string name="servicedesc_visa">HCE Service Visa Card</string>
+    <string name="servicedesc_mastercard">HCE Service Mastercard</string>
+    <string name="servicedesc_amex">HCE Service Amex Card</string>
+    <string name="servicedesc_discover">HCE Service Discover Card</string>
+    <string name="servicedesc_basic">HCE Service Basic (9000 to all)</string>
+    <string name="servicedesc_imported">HCE Service Imported Card</string>
     <string name="aiddescription">HCE AID Description</string>
+    <string name="active_profile">Active: %1$s</string>
+    <string name="profile_label">Emulated card profile</string>
+    <string name="profile_visa">Visa</string>
+    <string name="profile_visa_aid">AID A0000000031010</string>
+    <string name="profile_mastercard">Mastercard</string>
+    <string name="profile_mastercard_aid">AID A0000000041010</string>
+    <string name="profile_amex">Amex</string>
+    <string name="profile_amex_aid">AID A000000025</string>
+    <string name="profile_discover">Discover</string>
+    <string name="profile_discover_aid">AID A000000152</string>
+    <string name="profile_basic">Basic responder</string>
+    <string name="profile_basic_aid">PPSE only, answers 9000</string>
+    <string name="profile_imported">Imported card</string>
+    <string name="profile_imported_aid">JSON profile from file</string>
+    <string name="imported_title">Imported card files</string>
+    <string name="imported_active">Active: [%1$s] %2$s (%3$d APDUs)</string>
+    <string name="imported_none">No active file • %1$d stored</string>
+    <string name="import_card">Import JSON</string>
+    <string name="delete_card">Delete active</string>
+    <string name="edit_profile">Edit pairs (label/AID/APDUs)</string>
+    <string name="delete_confirm_title">Delete imported card?</string>
+    <string name="delete_confirm_message">Delete %1$s from internal storage?</string>
+    <string name="share_log">Share</string>
+    <string name="copy_log">Copy</string>
+    <string name="log_title">Session log</string>
+    <string name="log_empty">No activity yet — tap a reader to start logging.</string>
+    <string name="lab_title">Lab: oversized responses</string>
+    <string name="lab_warning">Robustness-test your OWN reader only. Start at 256, raise stepwise; crashes mean the reader mishandles extended APDUs.</string>
+    <string name="lab_enable">Long response</string>
+    <string name="lab_bytes_hint">Bytes</string>
+    <string name="lab_bytes_suffix">B</string>
+    <string name="lab_applies_basic">Applies only while the Basic profile is active.</string>
+    <string name="lab_auto_sweep">Auto sweep: step 256B → 64KB on each tap</string>
+    <string name="lab_probe">Malformed probes: 0x82 length confusion per tap</string>
+    <string name="policy_strict_afl">Strict AFL: decline out-of-AFL READs (6A83)</string>
+    <string name="policy_strict_length">Strict length: decline PDOL/CDOL mismatch (6700)</string>
+    <string name="share_tap">Share tap export (.apdu)</string>
+    <string name="reader_title">Reader under test</string>
+    <string name="reader_hint">Fingerprint is captured automatically from the next GPO tap (Visa/MC/Imported). Model + firmware come from the reader display or sticker — terminals never report them over NFC.</string>
+    <string name="reader_model">Model (e.g. VP8300)</string>
+    <string name="reader_fw">Firmware (e.g. 1.2.3)</string>
+    <string name="reader_save">Save reader identity</string>
+    <string name="reader_none">No terminal seen yet — tap a reader with any EMV profile first.</string>
+    <string name="clear_log">Clear</string>
+    <string name="tap_pay_hint">After switching profile, re-select this app under Settings → NFC → Tap and Pay.</string>
 
     <!-- select PPSE 2PAY.SYS.DDF01 -->
     <string name="hcePpse">325041592E5359532E4444463031</string>
-    <!-- visa credit or debit card -->
+    <!-- visa credit or debit card (EMVCo test profile) -->
     <string name="aidVisaCard">A0000000031010</string>
-    <!-- mastercard credit or debit card -->
+    <!-- mastercard credit or debit card (EMVCo test profile) -->
     <string name="aidMastercard">A0000000041010</string>
+    <!-- amex (EMVCo test profile) -->
+    <string name="aidAmex">A000000025</string>
+    <!-- discover (EMVCo test profile) -->
+    <string name="aidDiscover">A000000152</string>
     <string name="hce_service_log">HCE Service Log</string>
 </resources>

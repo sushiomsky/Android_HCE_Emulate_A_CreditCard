@@ -43,4 +43,8 @@ dependencies {
 
     // import und export complete credit card as GSON
     implementation("com.google.code.gson:gson:2.10.1")
+
+    // explicit pin: HCE services + MainActivity use LocalBroadcastManager,
+    // previously resolved only transitively
+    implementation("androidx.localbroadcastmanager:localbroadcastmanager:1.1.0")
 }
